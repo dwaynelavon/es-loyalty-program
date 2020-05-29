@@ -91,7 +91,7 @@ func (r *repository) Apply(ctx context.Context, command loyalty.Command) (*strin
 	return &aggregateID, &expectedVersion, nil
 }
 
-func (r *repository) Save(ctx context.Context, events ...*loyalty.Record) error {
+func (r *repository) Save(ctx context.Context, events ...*loyalty.Event) error {
 	if len(events) == 0 {
 		return nil
 	}

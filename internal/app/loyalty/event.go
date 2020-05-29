@@ -23,8 +23,8 @@ type Event interface {
 	// Payload *string
 }
 
-// Record contains data related to a single event
-type Record struct {
+// Event contains data related to a single event
+type Event struct {
 	// // AggregateID returns the id of the aggregate referenced by the event
 	// A string `firestore:"aggregateId"`
 	// // Event type descibes the type of event that occurred
@@ -65,9 +65,9 @@ type Record struct {
 // }
 
 // NewRecord creates a new event model. Events are the models to be applied to an Aggregate
-func NewRecord(id string, eventType string, version int, payload []byte) *Record {
+func NewRecord(id string, eventType string, version int, payload []byte) *Event {
 	payloadStr := string(payload)
-	return &Record{
+	return &Event{
 		AggregateID: id,
 		EventType:   eventType,
 		Version:     version,
@@ -77,27 +77,27 @@ func NewRecord(id string, eventType string, version int, payload []byte) *Record
 }
 
 // // AggregateID implements the Event interface
-// func (r Record) AggregateID() string {
+// func (r Event) AggregateID() string {
 // 	return r.A
 // }
 
 // // Version implements the Event interface
-// func (r Record) Version() int {
+// func (r Event) Version() int {
 // 	return r.V
 // }
 
 // // EventAt implements the Event interface
-// func (r Record) EventAt() time.Time {
+// func (r Event) EventAt() time.Time {
 // 	return r.At
 // }
 
 // //EventType implements the Event interface
-// func (r Record) EventType() string {
+// func (r Event) EventType() string {
 // 	return r.T
 // }
 
 // //Payload implements the Event interface
-// func (r Record) Payload() *string {
+// func (r Event) Payload() *string {
 // 	return r.P
 // }
 

@@ -18,7 +18,7 @@ type applier interface {
 // UserEventRepo is the main abstraction for loading and saving events
 type UserEventRepo interface {
 	// Save persists the events into the underlying Store
-	Save(ctx context.Context, events ...*loyalty.Record) error
+	Save(ctx context.Context, events ...*loyalty.Event) error
 
 	// Load retrieves the specified aggregate from the underlying store
 	Load(ctx context.Context, aggregateID string) (*User, error)
@@ -53,7 +53,7 @@ var (
 
 // UserCreated events is fired when a new user is created
 type UserCreated struct {
-	loyalty.Record
+	loyalty.Event
 }
 
 // Apply implements the applier interface
@@ -68,7 +68,7 @@ func (event *UserCreated) Apply(u *User) error {
 
 // UserDeleted events is fired when a user is deleted
 type UserDeleted struct {
-	loyalty.Record
+	loyalty.Event
 }
 
 // Apply implements the applier interface
@@ -87,16 +87,16 @@ func deserializePayload(payload *string) *User {
 	return &p
 }
 
-func getApplier(event loyalty.Record) (applier, bool) {
+func getApplier(event loyalty.Event) (applier, bool) {
 	switch event.EventType {
 	case userCreatedEventType:
 		return &UserCreated{
-			Record: event,
+			Event: event,
 		}, true
 
 	case userDeletedEventType:
 		return &UserDeleted{
-			Record: event,
+			Event: event,
 		}, true
 
 	default:
@@ -123,7 +123,7 @@ func (u *User) BuildUserAggregate(history loyalty.History) error {
 }
 
 //Handle implements the CommandHandler interface
-func (u *User) Handle(ctx context.Context, cmd loyalty.Command) ([]*loyalty.Record, error) {
+func (u *User) Handle(ctx context.Context, cmd loyalty.Command) ([]*loyalty.Event, error) {
 	switch v := cmd.(type) {
 	case *loyalty.CreateUser:
 		userPayload := NewUser(v.AggregateID())
@@ -134,7 +134,7 @@ func (u *User) Handle(ctx context.Context, cmd loyalty.Command) ([]*loyalty.Reco
 		if errMarshal != nil {
 			return nil, fmt.Errorf("error occurred while marshaling command payload")
 		}
-		return []*loyalty.Record{
+		return []*loyalty.Event{
 			loyalty.NewRecord(v.AggregateID(), userCreatedEventType, u.Version+1, payload),
 		}, nil
 	case *loyalty.DeleteUser:
@@ -143,7 +143,7 @@ func (u *User) Handle(ctx context.Context, cmd loyalty.Command) ([]*loyalty.Reco
 		if errMarshal != nil {
 			return nil, fmt.Errorf("error occurred while marshaling command payload")
 		}
-		return []*loyalty.Record{
+		return []*loyalty.Event{
 			loyalty.NewRecord(v.AggregateID(), userDeletedEventType, u.Version+1, payload),
 		}, nil
 	default:

@@ -23,7 +23,7 @@ func NewStore(firebaseApp *firebase.App) loyalty.EventStore {
 
 var eventCollection = "events"
 
-func (s *store) Save(ctx context.Context, events ...*loyalty.Record) error {
+func (s *store) Save(ctx context.Context, events ...*loyalty.Event) error {
 	if len(events) == 0 {
 		return nil
 	}
@@ -96,7 +96,7 @@ func (s *store) Load(ctx context.Context, aggregateID string) (loyalty.History, 
 func transformDocumentsToHistory(docs []*firestore.DocumentSnapshot) (loyalty.History, error) {
 	history := make(loyalty.History, len(docs))
 	for i, v := range docs {
-		var record loyalty.Record
+		var record loyalty.Event
 		err := v.DataTo(&record)
 		if err != nil {
 			return nil, errors.Wrapf(
