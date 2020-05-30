@@ -45,26 +45,17 @@ func (r *repository) Load(ctx context.Context, aggregateID string) (eventsource.
 }
 
 // Apply executes the command specified and returns the current version of the aggregate
-func (r *repository) Apply(ctx context.Context, command eventsource.Command) (*string, *int, error) {
-	if command == nil {
-		return nil, nil, errors.New("command provided to repository.Apply may not be nil")
+func (r *repository) Apply(ctx context.Context, events ...eventsource.Event) (*string, *int, error) {
+	if len(events) == 0 {
+		return nil, nil, errors.New("cannot apply empty event stream")
 	}
-	aggregateID := command.AggregateID()
-	if aggregateID == "" {
-		return nil, nil, errors.New("command provided to repository.Apply may not contain a blank AggregateID")
-	}
-
+	aggregateID := events[0].AggregateID
 	agg, err := r.load(ctx, aggregateID)
 	if err != nil {
 		if !eventsource.IsNotFound(err) {
 			return nil, nil, err
 		}
 		agg = r.newAggregate(aggregateID)
-	}
-
-	events, err := agg.Handle(ctx, command)
-	if err != nil {
-		return nil, nil, err
 	}
 
 	sort.Slice(events, func(i, j int) bool {
@@ -120,7 +111,7 @@ func (r *repository) load(ctx context.Context, aggregateID string) (eventsource.
 	r.logger.Sugar().Infof("Loaded %v event(s) for aggregate id, %v", entryCount, aggregateID)
 
 	agg := r.newAggregate(aggregateID)
-	errBuildUserAgg := agg.BuildUserAggregate(history)
+	errBuildUserAgg := agg.Apply(history)
 	if errBuildUserAgg != nil {
 		return nil, errors.Wrapf(
 			errBuildUserAgg,

@@ -31,8 +31,8 @@ func (u *User) EventVersion() int {
 	return u.Version
 }
 
-// BuildUserAggregate takes event history and applies them to an aggregate
-func (u *User) BuildUserAggregate(history eventsource.History) error {
+// Apply takes event history and applies them to an aggregate
+func (u *User) Apply(history eventsource.History) error {
 	for _, h := range history {
 		a, ok := getApplier(h)
 		if !ok {
@@ -44,21 +44,4 @@ func (u *User) BuildUserAggregate(history eventsource.History) error {
 		}
 	}
 	return nil
-}
-
-func getApplier(event eventsource.Event) (eventsource.Applier, bool) {
-	switch event.EventType {
-	case userCreatedEventType:
-		return &Created{
-			Event: event,
-		}, true
-
-	case userDeletedEventType:
-		return &Deleted{
-			Event: event,
-		}, true
-
-	default:
-		return nil, false
-	}
 }

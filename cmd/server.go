@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"time"
 
 	firebase "firebase.google.com/go"
 	"github.com/dwaynelavon/es-loyalty-program/config"
@@ -11,8 +12,6 @@ import (
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/firebasestore"
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/loyalty"
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/user"
-	"github.com/google/uuid"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"google.golang.org/api/option"
 )
@@ -33,32 +32,27 @@ func main() {
 			return user.NewUser(id)
 		},
 	}
-
 	userRepository := loyalty.NewRepository(params)
-	aggregateID, version, err := userRepository.Apply(context.TODO(), &loyalty.CreateUser{
+
+	dispatcher := eventsource.NewDispatcher(userRepository, logger)
+	dispatcher.Register(user.NewUserCommandHandler(user.CommandHandlerParams{Repo: userRepository}))
+	_ = dispatcher.Connect()
+
+	id := eventsource.NewUUID()
+	dispatcher.Dispatch(context.TODO(), &loyalty.CreateUser{
 		CommandModel: eventsource.CommandModel{
-			ID: uuid.New().String(),
+			ID: id,
 		},
 		Username: "admin",
 	})
-	if err != nil {
-		wrappedErr := errors.Wrap(err, "error occured while trying to apply command")
-		logger.Error(wrappedErr.Error())
-		return
-	}
-	logger.Sugar().Infof("Event saved with the version: %v", *version)
 
-	_, version, err = userRepository.Apply(context.TODO(), &loyalty.DeleteUser{
+	dispatcher.Dispatch(context.TODO(), &loyalty.DeleteUser{
 		CommandModel: eventsource.CommandModel{
-			ID: *aggregateID,
+			ID: id,
 		},
 	})
-	if err != nil {
-		wrappedErr := errors.Wrap(err, "error occured while trying to apply command")
-		logger.Error(wrappedErr.Error())
-		return
-	}
-	logger.Sugar().Infof("Event saved with the version: %v", *version)
+
+	time.Sleep(3 * time.Second)
 }
 
 func newFirebaseApp() (*firebase.App, error) {

@@ -10,22 +10,23 @@ type History []Event
 
 // EventRepo is the main abstraction for loading and saving events
 type EventRepo interface {
-	// Save persists the events into the underlying Store
+	// Save persists the events into the underlying store
 	Save(ctx context.Context, events ...Event) error
 
 	// Load retrieves the specified aggregate from the underlying store
 	Load(ctx context.Context, aggregateID string) (Aggregate, error)
 
-	// Apply executes the command specified and returns the current version of the aggregate
-	Apply(ctx context.Context, command Command) (*string, *int, error)
+	// Apply executes the events specified and returns the current version of the aggregate
+	Apply(ctx context.Context, events ...Event) (*string, *int, error)
 }
 
 // EventStore represents the method contract for interactinng with the Event store
 type EventStore interface {
-	Save(ctx context.Context, events ...Event) error
+	// Save persists events to the store
+	Save(context.Context, ...Event) error
 
 	// Load retrives event records from the store and returns them in ASC order
-	Load(ctx context.Context, aggregateID string) (History, error)
+	Load(context.Context, string) (History, error)
 }
 
 // Event contains data related to a single event
@@ -47,7 +48,7 @@ type Event struct {
 }
 
 // NewEvent creates a new event model. Events are the models to be applied to an Aggregate
-func NewEvent(id string, eventType string, version int, payload []byte) *Event {
+func NewEvent(id, eventType string, version int, payload []byte) *Event {
 	payloadStr := string(payload)
 	return &Event{
 		AggregateID: id,
