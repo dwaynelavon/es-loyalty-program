@@ -7,9 +7,10 @@ import (
 
 	firebase "firebase.google.com/go"
 	"github.com/dwaynelavon/es-loyalty-program/config"
+	"github.com/dwaynelavon/es-loyalty-program/internal/app/eventsource"
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/firebasestore"
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/loyalty"
-	"github.com/dwaynelavon/es-loyalty-program/internal/app/loyalty/aggregate"
+	"github.com/dwaynelavon/es-loyalty-program/internal/app/user"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -25,14 +26,17 @@ func main() {
 
 	logger, _ := zap.NewDevelopment()
 
-	params := aggregate.RepositoryParams{
+	params := loyalty.RepositoryParams{
 		Store:  firebasestore.NewStore(firebaseApp),
 		Logger: logger,
+		NewAggregate: func(id string) eventsource.Aggregate {
+			return user.NewUser(id)
+		},
 	}
 
-	userRepository := aggregate.NewRepository(params)
+	userRepository := loyalty.NewRepository(params)
 	aggregateID, version, err := userRepository.Apply(context.TODO(), &loyalty.CreateUser{
-		CommandModel: loyalty.CommandModel{
+		CommandModel: eventsource.CommandModel{
 			ID: uuid.New().String(),
 		},
 		Username: "admin",
@@ -45,7 +49,7 @@ func main() {
 	logger.Sugar().Infof("Event saved with the version: %v", *version)
 
 	_, version, err = userRepository.Apply(context.TODO(), &loyalty.DeleteUser{
-		CommandModel: loyalty.CommandModel{
+		CommandModel: eventsource.CommandModel{
 			ID: *aggregateID,
 		},
 	})
@@ -58,7 +62,10 @@ func main() {
 }
 
 func newFirebaseApp() (*firebase.App, error) {
-	config.LoadEnvWithPath("../config/.env")
+	errLoadEnv := config.LoadEnvWithPath("../config/.env")
+	if errLoadEnv != nil {
+		panic("unable to load environment variables")
+	}
 	configReader := config.NewReader()
 
 	firebaseConfigFile, configErr := configReader.ReadFirebaseCredentialsFileLocation()

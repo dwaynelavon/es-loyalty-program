@@ -6,7 +6,7 @@ import (
 
 	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go"
-	"github.com/dwaynelavon/es-loyalty-program/internal/app/loyalty"
+	"github.com/dwaynelavon/es-loyalty-program/internal/app/eventsource"
 	"github.com/pkg/errors"
 )
 
@@ -15,7 +15,7 @@ type store struct {
 }
 
 // NewStore instantiates a new instance of the EventRepo
-func NewStore(firebaseApp *firebase.App) loyalty.EventStore {
+func NewStore(firebaseApp *firebase.App) eventsource.EventStore {
 	return &store{
 		firebaseApp: firebaseApp,
 	}
@@ -23,14 +23,14 @@ func NewStore(firebaseApp *firebase.App) loyalty.EventStore {
 
 var eventCollection = "events"
 
-func (s *store) Save(ctx context.Context, events ...*loyalty.Event) error {
+func (s *store) Save(ctx context.Context, events ...eventsource.Event) error {
 	if len(events) == 0 {
 		return nil
 	}
 
 	client, errClient := s.firebaseApp.Firestore(ctx)
 	if errClient != nil {
-		return errors.Wrapf(errClient, "error occured while creating Firestore client: %v")
+		return errors.Wrap(errClient, "error occured while creating Firestore client")
 	}
 	defer client.Close()
 
@@ -69,10 +69,10 @@ func (s *store) Save(ctx context.Context, events ...*loyalty.Event) error {
 	return nil
 }
 
-func (s *store) Load(ctx context.Context, aggregateID string) (loyalty.History, error) {
+func (s *store) Load(ctx context.Context, aggregateID string) (eventsource.History, error) {
 	client, errClient := s.firebaseApp.Firestore(ctx)
 	if errClient != nil {
-		return nil, errors.Wrapf(errClient, "error occured while creating Firestore client: %v")
+		return nil, errors.Wrap(errClient, "error occured while creating Firestore client")
 	}
 	defer client.Close()
 
@@ -93,10 +93,10 @@ func (s *store) Load(ctx context.Context, aggregateID string) (loyalty.History, 
 	return transformDocumentsToHistory(docs)
 }
 
-func transformDocumentsToHistory(docs []*firestore.DocumentSnapshot) (loyalty.History, error) {
-	history := make(loyalty.History, len(docs))
+func transformDocumentsToHistory(docs []*firestore.DocumentSnapshot) (eventsource.History, error) {
+	history := make(eventsource.History, len(docs))
 	for i, v := range docs {
-		var record loyalty.Event
+		var record eventsource.Event
 		err := v.DataTo(&record)
 		if err != nil {
 			return nil, errors.Wrapf(
