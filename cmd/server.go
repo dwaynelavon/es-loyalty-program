@@ -35,24 +35,24 @@ func main() {
 	userRepository := loyalty.NewRepository(params)
 
 	dispatcher := eventsource.NewDispatcher(userRepository, logger)
-	dispatcher.Register(user.NewUserCommandHandler(user.CommandHandlerParams{Repo: userRepository}))
+	dispatcher.RegisterHandler(user.NewUserCommandHandler(user.CommandHandlerParams{Repo: userRepository}))
 	_ = dispatcher.Connect()
 
 	id := eventsource.NewUUID()
-	dispatcher.Dispatch(context.TODO(), &loyalty.CreateUser{
+	dispatcher.Dispatch(context.Background(), &loyalty.CreateUser{
 		CommandModel: eventsource.CommandModel{
 			ID: id,
 		},
 		Username: "admin",
 	})
 
-	dispatcher.Dispatch(context.TODO(), &loyalty.DeleteUser{
+	dispatcher.Dispatch(context.Background(), &loyalty.DeleteUser{
 		CommandModel: eventsource.CommandModel{
 			ID: id,
 		},
 	})
 
-	time.Sleep(3 * time.Second)
+	time.Sleep(13 * time.Second)
 }
 
 func newFirebaseApp() (*firebase.App, error) {

@@ -96,7 +96,7 @@ func handleDeleteUser(ctx context.Context, handler *commandHandler, command *loy
 	if err != nil {
 		return nil, errors.Wrapf(
 			err,
-			"error occured while trying to handle delete user command for aggregate: %v",
+			"error occured while trying to handle delete user command for aggregate: %v\n",
 			command.AggregateID(),
 		)
 	}

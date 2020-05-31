@@ -11,7 +11,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/reactivex/rxgo/v2 v2.1.0
 	github.com/stretchr/objx v0.2.0 // indirect
-	github.com/stretchr/testify v1.6.0 // indirect
+	github.com/stretchr/testify v1.6.0
 	go.uber.org/zap v1.15.0
 	google.golang.org/api v0.25.0
 	gopkg.in/yaml.v3 v3.0.0-20200506231410-2ff61e1afc86 // indirect

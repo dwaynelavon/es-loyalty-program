@@ -2,10 +2,17 @@ package eventsource
 
 import (
 	"context"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/reactivex/rxgo/v2"
 	"go.uber.org/zap"
+)
+
+var (
+	errNoHandlersRegistered = errors.New("cannot connect a dispatcher with no handlers registered")
+	errInvalidCommand       = errors.New("only eventsource.commands may be handled by the dispatcher")
+	errBlankID              = errors.New("command provided to repository.Apply may not contain a blank AggregateID")
 )
 
 type CommandDispatcher interface {
@@ -22,7 +29,7 @@ type dispatcher struct {
 	repo     EventRepo
 }
 
-func NewDispatcher(repo EventRepo, logger *zap.Logger) CommandDispatcher {
+func NewDispatcher(repo EventRepo, logger *zap.Logger) *dispatcher {
 	ch := make(chan rxgo.Item)
 	return &dispatcher{
 		ch:       ch,
@@ -38,6 +45,21 @@ type CommandDescriptor struct {
 	Command Command
 }
 
+/* ----- exported ----- */
+func (d *dispatcher) Connect() error {
+	if len(d.handlers) == 0 {
+		return errNoHandlersRegistered
+	}
+
+	d.obs.
+		Filter(filterInvalidCommandWithLogger(d.logger)).
+		DoOnNext(handlerDispatchWithDispatcher(d))
+
+	d.obs.Connect()
+
+	return nil
+}
+
 func (d *dispatcher) Dispatch(ctx context.Context, cmd Command) {
 	d.ch <- rxgo.Of(CommandDescriptor{
 		Ctx:     ctx,
@@ -45,20 +67,12 @@ func (d *dispatcher) Dispatch(ctx context.Context, cmd Command) {
 	})
 }
 
-func (d *dispatcher) Register(c CommandHandler) {
+func (d *dispatcher) RegisterHandler(c CommandHandler) {
 	commands := c.CommandsHandled()
 	for _, v := range commands {
 		typeName := typeOf(v)
 		d.handlers[typeName] = c
 	}
-}
-
-func getAggregateID(c Command) (*string, error) {
-	aggregateID := c.AggregateID()
-	if aggregateID == "" {
-		return nil, errors.New("command provided to repository.Apply may not contain a blank AggregateID")
-	}
-	return &aggregateID, nil
 }
 
 func (d *dispatcher) check(err error) (error, bool) {
@@ -70,42 +84,73 @@ func (d *dispatcher) check(err error) (error, bool) {
 	return nil, true
 }
 
-func (d *dispatcher) Connect() error {
-	if len(d.handlers) == 0 {
-		return errors.New("cannot connect a dispatcher with no handlers registered")
+/* ----- local ----- */
+func (d *dispatcher) getHandler(command Command) (CommandHandler, error) {
+	handler, ok := d.handlers[typeOf(command)]
+	if !ok {
+		return nil, errors.New("command does not have a registered command handler")
 	}
+	return handler, nil
+}
 
-	d.obs.DoOnNext(func(item interface{}) {
-		var descriptor CommandDescriptor
-		var ok bool
-		if descriptor, ok = item.(CommandDescriptor); !ok {
-			d.logger.Error("only eventsource.commands may be handled by the dispatcher")
+func (d *dispatcher) info(s string, args ...interface{}) {
+	d.logger.Sugar().Infof(s, args...)
+}
+
+func handlerDispatchWithDispatcher(d *dispatcher) rxgo.NextFunc {
+	return func(item interface{}) {
+		var (
+			descriptor = item.(CommandDescriptor)
+			command    = descriptor.Command
+			ctx        = descriptor.Ctx
+		)
+		handler, errHandler := d.getHandler(command)
+		if _, ok := d.check(errHandler); !ok {
 			return
 		}
-		command := descriptor.Command
-		ctx := descriptor.Ctx
-		aggregateID, errBlankID := getAggregateID(command)
-		if _, ok := d.check(errBlankID); !ok {
-			return
-		}
-		d.logger.Sugar().Infof("handling command %T for aggregate %v", command, command.AggregateID())
-		handler, ok := d.handlers[typeOf(command)]
-		if !ok {
-			_, _ = d.check(errors.New("command does not have a registered command handler"))
-			return
-		}
+
+		d.info(
+			"handling command %T for aggregate %v",
+			command,
+			command.AggregateID(),
+		)
+
+		start := time.Now()
 		events, err := handler.Handle(ctx, command)
 		if _, ok := d.check(err); !ok {
 			return
 		}
-		_, version, errApply := d.repo.Apply(ctx, events...)
+		aggregateID, version, errApply := d.repo.Apply(ctx, events...)
 		if _, ok := d.check(errApply); !ok {
 			return
 		}
-		d.logger.Sugar().Infof("saved %v events for aggregate %v. current version is: %v", len(events), aggregateID, *version)
-	})
+		if aggregateID == nil || version == nil {
+			return
+		}
 
-	d.obs.Connect()
+		d.info(
+			"saved %v event(s) for aggregate %v. current version is: %v (%v elapsed)",
+			len(events),
+			*aggregateID,
+			*version,
+			time.Since(start),
+		)
+	}
+}
 
-	return nil
+func filterInvalidCommandWithLogger(logger *zap.Logger) rxgo.Predicate {
+	return func(item interface{}) bool {
+		var ok bool
+		var descriptor CommandDescriptor
+		if descriptor, ok = item.(CommandDescriptor); !ok {
+			logger.Error(errInvalidCommand.Error())
+			return false
+		}
+		if descriptor.Command.AggregateID() == "" {
+			logger.Error(errBlankID.Error())
+			return false
+		}
+
+		return true
+	}
 }

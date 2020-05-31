@@ -108,7 +108,7 @@ func (r *repository) load(ctx context.Context, aggregateID string) (eventsource.
 		return nil, eventsource.NewError(nil, eventsource.ErrAggregateNotFound, "unable to load %v", aggregateID)
 	}
 
-	r.logger.Sugar().Infof("Loaded %v event(s) for aggregate id, %v", entryCount, aggregateID)
+	r.logger.Sugar().Infof("loaded %v event(s) for aggregate id, %v", entryCount, aggregateID)
 
 	agg := r.newAggregate(aggregateID)
 	errBuildUserAgg := agg.Apply(history)
