@@ -1,0 +1,42 @@
+# GraphQL schema example
+#
+# https://gqlgen.com/getting-started/
+
+scalar Time
+
+enum Status {
+    Accepted
+    Rejected
+}
+
+type User {
+    userId: String
+    createdAt: Time!
+    updatedAt: Time!
+    deletedAt: Time
+    username: String!
+}
+
+type Query {
+    users: [User!]!
+}
+
+input NewUser {
+    username: String!
+}
+
+type UserCreateResponse {
+    userId: String
+    username: String
+    status: Status!
+}
+
+type UserDeleteResponse {
+    userId: String
+    status: Status!
+}
+
+type Mutation {
+    userCreate(username: String!): UserCreateResponse!
+    userDelete(userId: String!): UserDeleteResponse!
+}

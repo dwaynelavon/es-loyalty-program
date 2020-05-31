@@ -5,19 +5,18 @@ import (
 	"sort"
 
 	"cloud.google.com/go/firestore"
-	firebase "firebase.google.com/go"
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/eventsource"
 	"github.com/pkg/errors"
 )
 
 type store struct {
-	firebaseApp *firebase.App
+	firestoreClient *firestore.Client
 }
 
 // NewStore instantiates a new instance of the EventRepo
-func NewStore(firebaseApp *firebase.App) eventsource.EventStore {
+func NewStore(firestoreClient *firestore.Client) eventsource.EventStore {
 	return &store{
-		firebaseApp: firebaseApp,
+		firestoreClient: firestoreClient,
 	}
 }
 
@@ -28,19 +27,13 @@ func (s *store) Save(ctx context.Context, events ...eventsource.Event) error {
 		return nil
 	}
 
-	client, errClient := s.firebaseApp.Firestore(ctx)
-	if errClient != nil {
-		return errors.Wrap(errClient, "error occured while creating Firestore client")
-	}
-	defer client.Close()
-
 	sortedEvents := events
 	sort.Slice(sortedEvents, func(i, j int) bool {
 		return sortedEvents[i].Version < sortedEvents[j].Version
 	})
 
-	batch := client.Batch()
-	ref := client.Collection(eventCollection)
+	batch := s.firestoreClient.Batch()
+	ref := s.firestoreClient.Collection(eventCollection)
 	for _, v := range events {
 		m := &map[string]interface{}{
 			"aggregateId": v.AggregateID,
@@ -70,13 +63,8 @@ func (s *store) Save(ctx context.Context, events ...eventsource.Event) error {
 }
 
 func (s *store) Load(ctx context.Context, aggregateID string) (eventsource.History, error) {
-	client, errClient := s.firebaseApp.Firestore(ctx)
-	if errClient != nil {
-		return nil, errors.Wrap(errClient, "error occured while creating Firestore client")
-	}
-	defer client.Close()
 
-	docs, errQuery := client.
+	docs, errQuery := s.firestoreClient.
 		Collection(eventCollection).
 		OrderBy("version", firestore.Asc).
 		Where("aggregateId", "==", aggregateID).

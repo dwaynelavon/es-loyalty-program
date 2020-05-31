@@ -16,8 +16,8 @@ var (
 )
 
 type CommandDispatcher interface {
-	Dispatch(context.Context, Command)
-	Register(CommandHandler)
+	Dispatch(context.Context, Command) error
+	RegisterHandler(CommandHandler)
 	Connect() error
 }
 
@@ -54,17 +54,18 @@ func (d *dispatcher) Connect() error {
 	d.obs.
 		Filter(filterInvalidCommandWithLogger(d.logger)).
 		DoOnNext(handlerDispatchWithDispatcher(d))
-
 	d.obs.Connect()
 
 	return nil
 }
 
-func (d *dispatcher) Dispatch(ctx context.Context, cmd Command) {
+func (d *dispatcher) Dispatch(ctx context.Context, cmd Command) error {
 	d.ch <- rxgo.Of(CommandDescriptor{
 		Ctx:     ctx,
 		Command: cmd,
 	})
+
+	return nil
 }
 
 func (d *dispatcher) RegisterHandler(c CommandHandler) {
@@ -120,6 +121,12 @@ func handlerDispatchWithDispatcher(d *dispatcher) rxgo.NextFunc {
 		if _, ok := d.check(err); !ok {
 			return
 		}
+
+		/*
+			TODO: if there is a requirement to have more than one repository.
+			this apply operation can be moved out of the dispatcher. In an effort
+			to reduce some intial complexity, we can continue to handler here for now
+		*/
 		aggregateID, version, errApply := d.repo.Apply(ctx, events...)
 		if _, ok := d.check(errApply); !ok {
 			return
