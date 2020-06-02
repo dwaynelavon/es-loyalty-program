@@ -48,7 +48,8 @@ func main() {
 	userRepository := loyalty.NewRepository(params)
 	dispatcher := eventsource.NewDispatcher(userRepository, logger)
 	dispatcher.RegisterHandler(user.NewUserCommandHandler(user.CommandHandlerParams{
-		Repo: userRepository,
+		Repo:   userRepository,
+		Logger: logger,
 	}))
 	_ = dispatcher.Connect()
 

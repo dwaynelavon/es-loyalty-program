@@ -2,7 +2,6 @@ package eventsource
 
 import (
 	"context"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/reactivex/rxgo/v2"
@@ -105,8 +104,10 @@ func handlerDispatchWithDispatcher(d *dispatcher) rxgo.NextFunc {
 			command    = descriptor.Command
 			ctx        = descriptor.Ctx
 		)
+
 		handler, errHandler := d.getHandler(command)
-		if _, ok := d.check(errHandler); !ok {
+		if errHandler != nil {
+			d.logger.Sugar().Error(errHandler)
 			return
 		}
 
@@ -116,32 +117,10 @@ func handlerDispatchWithDispatcher(d *dispatcher) rxgo.NextFunc {
 			command.AggregateID(),
 		)
 
-		start := time.Now()
-		events, err := handler.Handle(ctx, command)
-		if _, ok := d.check(err); !ok {
-			return
+		err := handler.Handle(ctx, command)
+		if err != nil {
+			d.logger.Sugar().Error(err)
 		}
-
-		/*
-			TODO: if there is a requirement to have more than one repository.
-			this apply operation can be moved out of the dispatcher. In an effort
-			to reduce some intial complexity, we can continue to handler here for now
-		*/
-		aggregateID, version, errApply := d.repo.Apply(ctx, events...)
-		if _, ok := d.check(errApply); !ok {
-			return
-		}
-		if aggregateID == nil || version == nil {
-			return
-		}
-
-		d.info(
-			"saved %v event(s) for aggregate %v. current version is: %v (%v elapsed)",
-			len(events),
-			*aggregateID,
-			*version,
-			time.Since(start),
-		)
 	}
 }
 

@@ -3,10 +3,12 @@ package user
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/eventsource"
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/loyalty"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
 var commandsHandled []eventsource.Command = []eventsource.Command{
@@ -14,37 +16,32 @@ var commandsHandled []eventsource.Command = []eventsource.Command{
 	&loyalty.DeleteUser{},
 }
 
-type EventRepo interface {
-	// Save persists the events into the underlying Store
-	Save(context.Context, ...eventsource.Event) error
-
-	// Load retrieves the specified aggregate from the underlying store
-	Load(context.Context, string) (eventsource.Aggregate, error)
-}
-
 type commandHandler struct {
-	repo EventRepo
+	repo   eventsource.EventRepo
+	logger *zap.Logger
 }
 
 type CommandHandlerParams struct {
-	Repo EventRepo
+	Repo   eventsource.EventRepo
+	Logger *zap.Logger
 }
 
 func NewUserCommandHandler(params CommandHandlerParams) eventsource.CommandHandler {
 	return &commandHandler{
-		repo: params.Repo,
+		repo:   params.Repo,
+		logger: params.Logger,
 	}
 }
 
 // Handle implements the Aggregate interface. Unhandled events fall through safely
-func (c *commandHandler) Handle(ctx context.Context, cmd eventsource.Command) ([]eventsource.Event, error) {
+func (c *commandHandler) Handle(ctx context.Context, cmd eventsource.Command) error {
 	switch v := cmd.(type) {
 	case *loyalty.CreateUser:
-		return handleCreateUser(ctx, c, v)
+		return c.handleCreateUser(ctx, c, v)
 	case *loyalty.DeleteUser:
-		return handleDeleteUser(ctx, c, v)
+		return c.handleDeleteUser(ctx, c, v)
 	}
-	return nil, nil
+	return nil
 }
 
 // CommandsHandled implements the command handler interface
@@ -69,7 +66,7 @@ func getApplier(event eventsource.Event) (eventsource.Applier, bool) {
 	}
 }
 
-func handleCreateUser(ctx context.Context, handler *commandHandler, command *loyalty.CreateUser) ([]eventsource.Event, error) {
+func (c *commandHandler) handleCreateUser(ctx context.Context, handler *commandHandler, command *loyalty.CreateUser) error {
 	userPayload := &Payload{
 		Username:  &command.Username,
 		CreatedAt: eventsource.TimeNow(),
@@ -77,30 +74,62 @@ func handleCreateUser(ctx context.Context, handler *commandHandler, command *loy
 	}
 	payload, errMarshal := serialize(userPayload)
 	if errMarshal != nil {
-		return nil, fmt.Errorf("error occurred while serializing command payload: CreateUser")
+		return fmt.Errorf("error occurred while serializing command payload: CreateUser")
 	}
-	return []eventsource.Event{
+	events := []eventsource.Event{
 		*eventsource.NewEvent(command.AggregateID(), userCreatedEventType, 1, payload),
-	}, nil
+	}
+
+	start := time.Now()
+	aggregateID, version, errApply := c.repo.Apply(ctx, events...)
+	if errApply != nil {
+		return errApply
+	}
+
+	c.logger.Sugar().Infof(
+		"saved %v event(s) for aggregate %v. current version is: %v (%v elapsed)",
+		len(events),
+		*aggregateID,
+		*version,
+		time.Since(start),
+	)
+
+	return nil
 }
 
-func handleDeleteUser(ctx context.Context, handler *commandHandler, command *loyalty.DeleteUser) ([]eventsource.Event, error) {
+func (c *commandHandler) handleDeleteUser(ctx context.Context, handler *commandHandler, command *loyalty.DeleteUser) error {
 	userPayload := &Payload{
 		DeletedAt: eventsource.TimeNow(),
 	}
 	payload, errMarshal := serialize(userPayload)
 	if errMarshal != nil {
-		return nil, fmt.Errorf("error occurred while serializing command payload: DeleteUser")
+		return fmt.Errorf("error occurred while serializing command payload: DeleteUser")
 	}
 	agg, err := handler.repo.Load(ctx, command.AggregateID())
 	if err != nil {
-		return nil, errors.Wrapf(
+		return errors.Wrapf(
 			err,
-			"error occured while trying to handle delete user command for aggregate: %v\n",
+			"error occurred while trying to handle delete user command for aggregate: %v\n",
 			command.AggregateID(),
 		)
 	}
-	return []eventsource.Event{
+	events := []eventsource.Event{
 		*eventsource.NewEvent(command.AggregateID(), userDeletedEventType, agg.EventVersion()+1, payload),
-	}, nil
+	}
+
+	start := time.Now()
+	aggregateID, version, errApply := c.repo.Apply(ctx, events...)
+	if errApply != nil {
+		return errApply
+	}
+
+	c.logger.Sugar().Infof(
+		"saved %v event(s) for aggregate %v. current version is: %v (%v elapsed)",
+		len(events),
+		*aggregateID,
+		*version,
+		time.Since(start),
+	)
+
+	return nil
 }

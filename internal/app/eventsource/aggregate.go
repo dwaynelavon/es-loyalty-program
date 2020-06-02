@@ -18,7 +18,7 @@ type Applier interface {
 
 type CommandHandler interface {
 	// Apply applies a command to an aggregate to generate a new set of events
-	Handle(context.Context, Command) ([]Event, error)
+	Handle(context.Context, Command) error
 
 	// CommandsHandled returns a list of commands the CommandHandler accepts
 	CommandsHandled() []Command

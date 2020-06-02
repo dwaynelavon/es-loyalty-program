@@ -53,9 +53,9 @@ type mockCommandHandler struct {
 	mock.Mock
 }
 
-func (m *mockCommandHandler) Handle(ctx context.Context, command Command) ([]Event, error) {
+func (m *mockCommandHandler) Handle(ctx context.Context, command Command) error {
 	args := m.Called()
-	return args.Get(0).([]Event), args.Error(1)
+	return args.Error(0)
 }
 
 func (m *mockCommandHandler) CommandsHandled() []Command {
@@ -105,27 +105,21 @@ func TestFilterInvalidCommands_BlankIDError(t *testing.T) {
 func TestHandleDispatch_HappyPath(t *testing.T) {
 
 	var (
-		ctx     = context.TODO()
-		id      = "123123"
-		version = 1
+		ctx = context.TODO()
+		id  = "123123"
 	)
 
 	// Set up the mocked functions
-	events := []Event{{
-		AggregateID: id,
-		Version:     version,
-	}}
 	repo := new(mockRepo)
 	commandHandler := new(mockCommandHandler)
-	commandHandler.On("Handle", mock.Anything, mock.Anything).Return(events, nil)
-	repo.On("Apply", mock.Anything, mock.Anything).Return(id, version, nil)
+	commandHandler.On("Handle", mock.Anything, mock.Anything).Return(nil)
 
 	// Create dispatcher and register handler
 	dispatcher := NewDispatcher(repo, zaptest.NewLogger(t))
 	dispatcher.RegisterHandler(commandHandler)
 	_ = dispatcher.Connect()
 
-	// Create dispatch handler and dispach a command
+	// Create dispatch handler and dispatsch a command
 	dispatchHandler := handlerDispatchWithDispatcher(dispatcher)
 	dispatchHandler(CommandDescriptor{
 		Ctx: ctx,
