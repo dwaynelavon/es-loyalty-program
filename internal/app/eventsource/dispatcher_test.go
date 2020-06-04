@@ -32,11 +32,6 @@ func (m *mockRepo) Apply(ctx context.Context, events ...Event) (*string, *int, e
 	return &arg0, &arg1, arg2
 }
 
-func getMockDispatcher(t *testing.T) *dispatcher {
-	var repo EventRepo = &mockRepo{}
-	return NewDispatcher(repo, zaptest.NewLogger(t))
-}
-
 /* ----- command ----- */
 
 type mockCommand struct {
@@ -69,10 +64,10 @@ func (m *mockCommandHandler) CommandsHandled() []Command {
 func TestConnect_NoHandlerError(t *testing.T) {
 	assert := assert.New(t)
 
-	dispatcher := getMockDispatcher(t)
+	dispatcher := NewDispatcher(zaptest.NewLogger(t))
 	err := dispatcher.Connect()
 
-	assert.EqualError(err, errNoHandlersRegistered.Error())
+	assert.EqualError(err, errMissingDispatcherHandlers.Error())
 
 	dispatcher.RegisterHandler(&mockCommandHandler{})
 	err = dispatcher.Connect()
@@ -115,7 +110,7 @@ func TestHandleDispatch_HappyPath(t *testing.T) {
 	commandHandler.On("Handle", mock.Anything, mock.Anything).Return(nil)
 
 	// Create dispatcher and register handler
-	dispatcher := NewDispatcher(repo, zaptest.NewLogger(t))
+	dispatcher := NewDispatcher(zaptest.NewLogger(t))
 	dispatcher.RegisterHandler(commandHandler)
 	_ = dispatcher.Connect()
 

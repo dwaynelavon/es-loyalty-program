@@ -26,7 +26,7 @@ func (event *Created) Apply(u eventsource.Aggregate) error {
 	if errDeserialize != nil {
 		return errors.Wrapf(
 			errDeserialize,
-			"error occured while trying to deserialize payload for event type: %v",
+			"error occurred while trying to deserialize payload for event type: %v",
 			event.EventType,
 		)
 	}
@@ -53,7 +53,7 @@ func (event *Deleted) Apply(u eventsource.Aggregate) error {
 	if errDeserialize != nil {
 		return errors.Wrapf(
 			errDeserialize,
-			"error occured while trying to deserialize payload for event type: %v",
+			"error occurred while trying to deserialize payload for event type: %v",
 			event.EventType,
 		)
 	}

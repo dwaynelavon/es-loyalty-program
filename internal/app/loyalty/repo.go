@@ -89,7 +89,7 @@ func (r *repository) Save(ctx context.Context, events ...eventsource.Event) erro
 
 	errSave := r.store.Save(ctx, events...)
 	if errSave != nil {
-		return errors.Wrapf(errSave, "error occured while trying to save %v events for aggregate: %v", len(events), events[0].AggregateID)
+		return errors.Wrapf(errSave, "error occurred while trying to save %v events for aggregate: %v", len(events), events[0].AggregateID)
 	}
 
 	return nil
@@ -115,7 +115,7 @@ func (r *repository) load(ctx context.Context, aggregateID string) (eventsource.
 	if errBuildUserAgg != nil {
 		return nil, errors.Wrapf(
 			errBuildUserAgg,
-			"error occured while trying to build user aggregate for aggregate: %v",
+			"error occurred while trying to build user aggregate for aggregate: %v",
 			aggregateID,
 		)
 	}

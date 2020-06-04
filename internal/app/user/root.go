@@ -36,11 +36,11 @@ func (u *User) Apply(history eventsource.History) error {
 	for _, h := range history {
 		a, ok := getApplier(h)
 		if !ok {
-			return fmt.Errorf("error occured while trying to get applier for: %v", h.EventType)
+			return fmt.Errorf("error occurred while trying to get applier for: %v", h.EventType)
 		}
 		errApply := a.Apply(u)
 		if errApply != nil {
-			return fmt.Errorf("error occured while trying to apply: %v", h.EventType)
+			return fmt.Errorf("error occurred while trying to apply: %v", h.EventType)
 		}
 	}
 	return nil

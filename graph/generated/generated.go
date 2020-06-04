@@ -45,7 +45,7 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	Mutation struct {
-		UserCreate func(childComplexity int, username string) int
+		UserCreate func(childComplexity int, username string, email string) int
 		UserDelete func(childComplexity int, userID string) int
 	}
 
@@ -62,6 +62,7 @@ type ComplexityRoot struct {
 	}
 
 	UserCreateResponse struct {
+		Email    func(childComplexity int) int
 		Status   func(childComplexity int) int
 		UserID   func(childComplexity int) int
 		Username func(childComplexity int) int
@@ -74,7 +75,7 @@ type ComplexityRoot struct {
 }
 
 type MutationResolver interface {
-	UserCreate(ctx context.Context, username string) (*model.UserCreateResponse, error)
+	UserCreate(ctx context.Context, username string, email string) (*model.UserCreateResponse, error)
 	UserDelete(ctx context.Context, userID string) (*model.UserDeleteResponse, error)
 }
 type QueryResolver interface {
@@ -106,7 +107,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.UserCreate(childComplexity, args["username"].(string)), true
+		return e.complexity.Mutation.UserCreate(childComplexity, args["username"].(string), args["email"].(string)), true
 
 	case "Mutation.userDelete":
 		if e.complexity.Mutation.UserDelete == nil {
@@ -161,6 +162,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.User.Username(childComplexity), true
+
+	case "UserCreateResponse.email":
+		if e.complexity.UserCreateResponse.Email == nil {
+			break
+		}
+
+		return e.complexity.UserCreateResponse.Email(childComplexity), true
 
 	case "UserCreateResponse.status":
 		if e.complexity.UserCreateResponse.Status == nil {
@@ -291,6 +299,7 @@ input NewUser {
 type UserCreateResponse {
     userId: String
     username: String
+    email: String
     status: Status!
 }
 
@@ -300,7 +309,7 @@ type UserDeleteResponse {
 }
 
 type Mutation {
-    userCreate(username: String!): UserCreateResponse!
+    userCreate(username: String!, email: String!): UserCreateResponse!
     userDelete(userId: String!): UserDeleteResponse!
 }
 `, BuiltIn: false},
@@ -322,6 +331,14 @@ func (ec *executionContext) field_Mutation_userCreate_args(ctx context.Context, 
 		}
 	}
 	args["username"] = arg0
+	var arg1 string
+	if tmp, ok := rawArgs["email"]; ok {
+		arg1, err = ec.unmarshalNString2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["email"] = arg1
 	return args, nil
 }
 
@@ -413,7 +430,7 @@ func (ec *executionContext) _Mutation_userCreate(ctx context.Context, field grap
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().UserCreate(rctx, args["username"].(string))
+		return ec.resolvers.Mutation().UserCreate(rctx, args["username"].(string), args["email"].(string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -787,6 +804,37 @@ func (ec *executionContext) _UserCreateResponse_username(ctx context.Context, fi
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
 		return obj.Username, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _UserCreateResponse_email(ctx context.Context, field graphql.CollectedField, obj *model.UserCreateResponse) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "UserCreateResponse",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Email, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2116,6 +2164,8 @@ func (ec *executionContext) _UserCreateResponse(ctx context.Context, sel ast.Sel
 			out.Values[i] = ec._UserCreateResponse_userId(ctx, field, obj)
 		case "username":
 			out.Values[i] = ec._UserCreateResponse_username(ctx, field, obj)
+		case "email":
+			out.Values[i] = ec._UserCreateResponse_email(ctx, field, obj)
 		case "status":
 			out.Values[i] = ec._UserCreateResponse_status(ctx, field, obj)
 			if out.Values[i] == graphql.Null {

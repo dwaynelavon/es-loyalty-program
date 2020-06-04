@@ -28,6 +28,7 @@ input NewUser {
 type UserCreateResponse {
     userId: String
     username: String
+    email: String
     status: Status!
 }
 
@@ -37,6 +38,6 @@ type UserDeleteResponse {
 }
 
 type Mutation {
-    userCreate(username: String!): UserCreateResponse!
+    userCreate(username: String!, email: String!): UserCreateResponse!
     userDelete(userId: String!): UserDeleteResponse!
 }

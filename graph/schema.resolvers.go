@@ -13,13 +13,14 @@ import (
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/loyalty"
 )
 
-func (r *mutationResolver) UserCreate(ctx context.Context, username string) (*model.UserCreateResponse, error) {
+func (r *mutationResolver) UserCreate(ctx context.Context, username string, email string) (*model.UserCreateResponse, error) {
 	id := eventsource.NewUUID()
 	err := r.Dispatcher.Dispatch(context.Background(), &loyalty.CreateUser{
 		CommandModel: eventsource.CommandModel{
 			ID: id,
 		},
 		Username: "admin",
+		Email:    "string",
 	})
 	if err != nil {
 		return &model.UserCreateResponse{
@@ -30,6 +31,7 @@ func (r *mutationResolver) UserCreate(ctx context.Context, username string) (*mo
 		Status:   model.StatusAccepted,
 		Username: &username,
 		UserID:   &id,
+		Email:    &email,
 	}, nil
 }
 

@@ -24,6 +24,7 @@ type User struct {
 type UserCreateResponse struct {
 	UserID   *string `json:"userId"`
 	Username *string `json:"username"`
+	Email    *string `json:"email"`
 	Status   Status  `json:"status"`
 }
 

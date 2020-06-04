@@ -1,4 +1,4 @@
-package firebasestore
+package event
 
 import (
 	"context"
@@ -53,7 +53,7 @@ func (s *store) Save(ctx context.Context, events ...eventsource.Event) error {
 	if err != nil {
 		return errors.Wrapf(
 			err,
-			"error occured in store while trying to commit a batch of %v events for aggregate: %v",
+			"error occurred in store while trying to commit a batch of %v events for aggregate: %v",
 			len(events),
 			events[0].AggregateID,
 		)
@@ -74,7 +74,7 @@ func (s *store) Load(ctx context.Context, aggregateID string) (eventsource.Histo
 	if errQuery != nil {
 		return nil, errors.Wrapf(
 			errQuery,
-			"error occured while trying to load events for aggregateID: %v",
+			"error occurred while trying to load events for aggregateID: %v",
 			aggregateID,
 		)
 	}
@@ -89,7 +89,7 @@ func transformDocumentsToHistory(docs []*firestore.DocumentSnapshot) (eventsourc
 		if err != nil {
 			return nil, errors.Wrapf(
 				err,
-				"error occured while transforming Firestore document: %v into event record",
+				"error occurred while transforming Firestore document: %v into event record",
 				v.Ref.ID,
 			)
 		}

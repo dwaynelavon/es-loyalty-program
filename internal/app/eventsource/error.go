@@ -1,6 +1,8 @@
 package eventsource
 
-import "fmt"
+import (
+	"fmt"
+)
 
 const (
 	// ErrInvalidEncoding is returned when the Serializer cannot marshal the event

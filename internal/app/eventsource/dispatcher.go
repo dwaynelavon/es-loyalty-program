@@ -9,10 +9,18 @@ import (
 )
 
 var (
-	errNoHandlersRegistered = errors.New("cannot connect a dispatcher with no handlers registered")
-	errInvalidCommand       = errors.New("only eventsource.commands may be handled by the dispatcher")
-	errBlankID              = errors.New("command provided to repository.Apply may not contain a blank AggregateID")
+	errMissingDispatcherHandlers = errors.New("cannot connect a dispatcher without any registered handlers")
+	errInvalidCommand            = errors.New("only eventsource.commands may be handled by the dispatcher")
+	errBlankID                   = errors.New("command provided to repository.Apply may not contain a blank AggregateID")
 )
+
+type CommandHandler interface {
+	// Apply applies a command to an aggregate to generate a new set of events
+	Handle(context.Context, Command) error
+
+	// CommandsHandled returns a list of commands the CommandHandler accepts
+	CommandsHandled() []Command
+}
 
 type CommandDispatcher interface {
 	Dispatch(context.Context, Command) error
@@ -25,17 +33,15 @@ type dispatcher struct {
 	ch       chan rxgo.Item
 	obs      rxgo.Observable
 	logger   *zap.Logger
-	repo     EventRepo
 }
 
-func NewDispatcher(repo EventRepo, logger *zap.Logger) *dispatcher {
+func NewDispatcher(logger *zap.Logger) *dispatcher {
 	ch := make(chan rxgo.Item)
 	return &dispatcher{
 		ch:       ch,
 		obs:      rxgo.FromChannel(ch, rxgo.WithPublishStrategy()),
 		handlers: make(map[string]CommandHandler),
 		logger:   logger,
-		repo:     repo,
 	}
 }
 
@@ -47,7 +53,7 @@ type CommandDescriptor struct {
 /* ----- exported ----- */
 func (d *dispatcher) Connect() error {
 	if len(d.handlers) == 0 {
-		return errNoHandlersRegistered
+		return errMissingDispatcherHandlers
 	}
 
 	d.obs.
@@ -59,6 +65,9 @@ func (d *dispatcher) Connect() error {
 }
 
 func (d *dispatcher) Dispatch(ctx context.Context, cmd Command) error {
+	if cmd.AggregateID() == "" {
+		return errors.New("all events must have non-blank aggregate id")
+	}
 	d.ch <- rxgo.Of(CommandDescriptor{
 		Ctx:     ctx,
 		Command: cmd,
@@ -73,15 +82,6 @@ func (d *dispatcher) RegisterHandler(c CommandHandler) {
 		typeName := typeOf(v)
 		d.handlers[typeName] = c
 	}
-}
-
-func (d *dispatcher) check(err error) (error, bool) {
-	if err != nil {
-		wrappedErr := errors.Wrap(err, "Dispatcher error:")
-		d.logger.Sugar().Error(wrappedErr)
-		return wrappedErr, false
-	}
-	return nil, true
 }
 
 /* ----- local ----- */

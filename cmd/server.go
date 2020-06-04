@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 
+	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go"
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
@@ -15,7 +16,8 @@ import (
 	"github.com/dwaynelavon/es-loyalty-program/graph"
 	"github.com/dwaynelavon/es-loyalty-program/graph/generated"
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/eventsource"
-	"github.com/dwaynelavon/es-loyalty-program/internal/app/firebasestore"
+	firebaseEventStore "github.com/dwaynelavon/es-loyalty-program/internal/app/firebasestore/event"
+	"github.com/dwaynelavon/es-loyalty-program/internal/app/firebasestore/readmodel"
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/loyalty"
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/user"
 	"github.com/pkg/errors"
@@ -37,21 +39,8 @@ func main() {
 	}
 
 	logger, _ := zap.NewDevelopment()
-
-	params := loyalty.RepositoryParams{
-		Store:  firebasestore.NewStore(firestoreClient),
-		Logger: logger,
-		NewAggregate: func(id string) eventsource.Aggregate {
-			return user.NewUser(id)
-		},
-	}
-	userRepository := loyalty.NewRepository(params)
-	dispatcher := eventsource.NewDispatcher(userRepository, logger)
-	dispatcher.RegisterHandler(user.NewUserCommandHandler(user.CommandHandlerParams{
-		Repo:   userRepository,
-		Logger: logger,
-	}))
-	_ = dispatcher.Connect()
+	eventBus := connectEventBus(logger, firestoreClient)
+	dispatcher := connectDispatcher(logger, firestoreClient, eventBus)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -67,6 +56,42 @@ func main() {
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
+}
+
+func connectDispatcher(logger *zap.Logger, firestoreClient *firestore.Client, eventBus eventsource.EventBus) eventsource.CommandDispatcher {
+	params := loyalty.RepositoryParams{
+		Store:  firebaseEventStore.NewStore(firestoreClient),
+		Logger: logger,
+		NewAggregate: func(id string) eventsource.Aggregate {
+			return user.NewUser(id)
+		},
+	}
+	userRepository := loyalty.NewRepository(params)
+	dispatcher := eventsource.NewDispatcher(logger)
+	dispatcher.RegisterHandler(user.NewUserCommandHandler(user.CommandHandlerParams{
+		Repo:     userRepository,
+		Logger:   logger,
+		EventBus: eventBus,
+	}))
+	_ = dispatcher.Connect()
+
+	return dispatcher
+}
+
+func connectEventBus(logger *zap.Logger, firestoreClient *firestore.Client) eventsource.EventBus {
+	// params := loyalty.RepositoryParams{
+	// 	Store:  firebasestore.NewStore(firestoreClient),
+	// 	Logger: logger,
+	// 	NewAggregate: func(id string) eventsource.Aggregate {
+	// 		return user.NewUser(id)
+	// 	},
+	// }
+	// userRepository := loyalty.NewRepository(params)
+	bus := eventsource.NewEventBus(logger)
+	bus.RegisterHandler(user.NewEventHandler(logger, readmodel.NewUserStore(firestoreClient)))
+	_ = bus.Connect()
+
+	return bus
 }
 
 func newFirebaseApp() (*firebase.App, error) {

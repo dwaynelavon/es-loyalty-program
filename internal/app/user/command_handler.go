@@ -17,31 +17,42 @@ var commandsHandled []eventsource.Command = []eventsource.Command{
 }
 
 type commandHandler struct {
-	repo   eventsource.EventRepo
-	logger *zap.Logger
+	eventBus eventsource.EventBus
+	repo     eventsource.EventRepo
+	logger   *zap.Logger
 }
 
 type CommandHandlerParams struct {
-	Repo   eventsource.EventRepo
-	Logger *zap.Logger
+	EventBus eventsource.EventBus
+	Repo     eventsource.EventRepo
+	Logger   *zap.Logger
 }
 
 func NewUserCommandHandler(params CommandHandlerParams) eventsource.CommandHandler {
 	return &commandHandler{
-		repo:   params.Repo,
-		logger: params.Logger,
+		eventBus: params.EventBus,
+		repo:     params.Repo,
+		logger:   params.Logger,
 	}
 }
 
 // Handle implements the Aggregate interface. Unhandled events fall through safely
 func (c *commandHandler) Handle(ctx context.Context, cmd eventsource.Command) error {
+	var err error
+	events := []eventsource.Event{}
+
 	switch v := cmd.(type) {
 	case *loyalty.CreateUser:
-		return c.handleCreateUser(ctx, c, v)
+		events, err = c.handleCreateUser(ctx, c, v)
 	case *loyalty.DeleteUser:
-		return c.handleDeleteUser(ctx, c, v)
+		events, err = c.handleDeleteUser(ctx, c, v)
 	}
-	return nil
+
+	if err != nil {
+		return err
+	}
+
+	return c.eventBus.Publish(events)
 }
 
 // CommandsHandled implements the command handler interface
@@ -66,15 +77,16 @@ func getApplier(event eventsource.Event) (eventsource.Applier, bool) {
 	}
 }
 
-func (c *commandHandler) handleCreateUser(ctx context.Context, handler *commandHandler, command *loyalty.CreateUser) error {
+func (c *commandHandler) handleCreateUser(ctx context.Context, handler *commandHandler, command *loyalty.CreateUser) ([]eventsource.Event, error) {
 	userPayload := &Payload{
 		Username:  &command.Username,
+		Email:     &command.Email,
 		CreatedAt: eventsource.TimeNow(),
 		UpdatedAt: eventsource.TimeNow(),
 	}
 	payload, errMarshal := serialize(userPayload)
 	if errMarshal != nil {
-		return fmt.Errorf("error occurred while serializing command payload: CreateUser")
+		return nil, fmt.Errorf("error occurred while serializing command payload: CreateUser")
 	}
 	events := []eventsource.Event{
 		*eventsource.NewEvent(command.AggregateID(), userCreatedEventType, 1, payload),
@@ -83,7 +95,7 @@ func (c *commandHandler) handleCreateUser(ctx context.Context, handler *commandH
 	start := time.Now()
 	aggregateID, version, errApply := c.repo.Apply(ctx, events...)
 	if errApply != nil {
-		return errApply
+		return nil, errApply
 	}
 
 	c.logger.Sugar().Infof(
@@ -94,25 +106,28 @@ func (c *commandHandler) handleCreateUser(ctx context.Context, handler *commandH
 		time.Since(start),
 	)
 
-	return nil
+	return events, nil
 }
 
-func (c *commandHandler) handleDeleteUser(ctx context.Context, handler *commandHandler, command *loyalty.DeleteUser) error {
+func (c *commandHandler) handleDeleteUser(ctx context.Context, handler *commandHandler, command *loyalty.DeleteUser) ([]eventsource.Event, error) {
 	userPayload := &Payload{
 		DeletedAt: eventsource.TimeNow(),
 	}
 	payload, errMarshal := serialize(userPayload)
 	if errMarshal != nil {
-		return fmt.Errorf("error occurred while serializing command payload: DeleteUser")
+		return nil, fmt.Errorf("error occurred while serializing command payload: DeleteUser")
 	}
+
+	// TODO: Check to make sure record isn't already deleted
 	agg, err := handler.repo.Load(ctx, command.AggregateID())
 	if err != nil {
-		return errors.Wrapf(
+		return nil, errors.Wrapf(
 			err,
 			"error occurred while trying to handle delete user command for aggregate: %v\n",
 			command.AggregateID(),
 		)
 	}
+
 	events := []eventsource.Event{
 		*eventsource.NewEvent(command.AggregateID(), userDeletedEventType, agg.EventVersion()+1, payload),
 	}
@@ -120,7 +135,7 @@ func (c *commandHandler) handleDeleteUser(ctx context.Context, handler *commandH
 	start := time.Now()
 	aggregateID, version, errApply := c.repo.Apply(ctx, events...)
 	if errApply != nil {
-		return errApply
+		return nil, errApply
 	}
 
 	c.logger.Sugar().Infof(
@@ -131,5 +146,5 @@ func (c *commandHandler) handleDeleteUser(ctx context.Context, handler *commandH
 		time.Since(start),
 	)
 
-	return nil
+	return events, nil
 }

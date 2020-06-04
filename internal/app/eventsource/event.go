@@ -20,7 +20,7 @@ type EventRepo interface {
 	Apply(ctx context.Context, events ...Event) (*string, *int, error)
 }
 
-// EventStore represents the method contract for interactinng with the Event store
+// EventStore represents the method contract for interacting with the Event store
 type EventStore interface {
 	// Save persists events to the store
 	Save(context.Context, ...Event) error
@@ -34,7 +34,7 @@ type Event struct {
 	// AggregateID returns the id of the aggregate referenced by the event
 	AggregateID string
 
-	// Event type descibes the type of event that occurred
+	// Event type describes the type of event that occurred
 	EventType string
 
 	// Version contains the version number of this event

@@ -8,6 +8,7 @@ import (
 // Payload represents extra data that can be store with the User events
 type Payload struct {
 	Username  *string    `json:"username,omitempty"`
+	Email     *string    `json:"email,omitempty"`
 	CreatedAt *time.Time `json:"createdAt,omitempty"`
 	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
 	DeletedAt *time.Time `json:"deletedAt,omitempty"`
