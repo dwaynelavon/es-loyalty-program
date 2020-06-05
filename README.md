@@ -23,4 +23,4 @@ POC for a loyalty program with event sourcing in Go
 -   UserProfileCreated
 -   ReferralCreated
 -   ReferralStatusUpdated (Created, Pending, Rejected, Completed)
--   RefferalCompleted
+-   ReferralCompleted

@@ -40,15 +40,22 @@ func main() {
 
 	logger, _ := zap.NewDevelopment()
 	eventBus := connectEventBus(logger, firestoreClient)
-	dispatcher := connectDispatcher(logger, firestoreClient, eventBus)
+	userRepository := newUserRepository(logger, firestoreClient)
+	dispatcher := connectDispatcher(logger, firestoreClient, eventBus, userRepository)
 
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = defaultPort
 	}
 
+	userReadModel := user.NewReadModel(user.ReadModelParams{
+		ReadRepo: newUserReadRepo(firestoreClient),
+		Logger:   logger,
+	})
+
 	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{
-		Dispatcher: dispatcher,
+		UserReadModel: userReadModel,
+		Dispatcher:    dispatcher,
 	}}))
 
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
@@ -58,7 +65,11 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
-func connectDispatcher(logger *zap.Logger, firestoreClient *firestore.Client, eventBus eventsource.EventBus) eventsource.CommandDispatcher {
+func newUserReadRepo(firestoreClient *firestore.Client) user.ReadRepo {
+	return readmodel.NewUserStore(firestoreClient)
+}
+
+func newUserRepository(logger *zap.Logger, firestoreClient *firestore.Client) eventsource.EventRepo {
 	params := loyalty.RepositoryParams{
 		Store:  firebaseEventStore.NewStore(firestoreClient),
 		Logger: logger,
@@ -66,7 +77,10 @@ func connectDispatcher(logger *zap.Logger, firestoreClient *firestore.Client, ev
 			return user.NewUser(id)
 		},
 	}
-	userRepository := loyalty.NewRepository(params)
+	return loyalty.NewRepository(params)
+}
+
+func connectDispatcher(logger *zap.Logger, firestoreClient *firestore.Client, eventBus eventsource.EventBus, userRepository eventsource.EventRepo) eventsource.CommandDispatcher {
 	dispatcher := eventsource.NewDispatcher(logger)
 	dispatcher.RegisterHandler(user.NewUserCommandHandler(user.CommandHandlerParams{
 		Repo:     userRepository,
@@ -79,14 +93,6 @@ func connectDispatcher(logger *zap.Logger, firestoreClient *firestore.Client, ev
 }
 
 func connectEventBus(logger *zap.Logger, firestoreClient *firestore.Client) eventsource.EventBus {
-	// params := loyalty.RepositoryParams{
-	// 	Store:  firebasestore.NewStore(firestoreClient),
-	// 	Logger: logger,
-	// 	NewAggregate: func(id string) eventsource.Aggregate {
-	// 		return user.NewUser(id)
-	// 	},
-	// }
-	// userRepository := loyalty.NewRepository(params)
 	bus := eventsource.NewEventBus(logger)
 	bus.RegisterHandler(user.NewEventHandler(logger, readmodel.NewUserStore(firestoreClient)))
 	_ = bus.Connect()

@@ -15,6 +15,7 @@ type User {
     updatedAt: Time!
     deletedAt: Time
     username: String!
+    email: String!
 }
 
 type Query {

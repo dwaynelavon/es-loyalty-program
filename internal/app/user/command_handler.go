@@ -43,9 +43,9 @@ func (c *commandHandler) Handle(ctx context.Context, cmd eventsource.Command) er
 
 	switch v := cmd.(type) {
 	case *loyalty.CreateUser:
-		events, err = c.handleCreateUser(ctx, c, v)
+		events, err = c.handleCreateUser(ctx, v)
 	case *loyalty.DeleteUser:
-		events, err = c.handleDeleteUser(ctx, c, v)
+		events, err = c.handleDeleteUser(ctx, v)
 	}
 
 	if err != nil {
@@ -77,10 +77,10 @@ func getApplier(event eventsource.Event) (eventsource.Applier, bool) {
 	}
 }
 
-func (c *commandHandler) handleCreateUser(ctx context.Context, handler *commandHandler, command *loyalty.CreateUser) ([]eventsource.Event, error) {
+func newCreateUserPayload(username, email *string) ([]byte, error) {
 	userPayload := &Payload{
-		Username:  &command.Username,
-		Email:     &command.Email,
+		Username:  username,
+		Email:     email,
 		CreatedAt: eventsource.TimeNow(),
 		UpdatedAt: eventsource.TimeNow(),
 	}
@@ -88,28 +88,11 @@ func (c *commandHandler) handleCreateUser(ctx context.Context, handler *commandH
 	if errMarshal != nil {
 		return nil, fmt.Errorf("error occurred while serializing command payload: CreateUser")
 	}
-	events := []eventsource.Event{
-		*eventsource.NewEvent(command.AggregateID(), userCreatedEventType, 1, payload),
-	}
 
-	start := time.Now()
-	aggregateID, version, errApply := c.repo.Apply(ctx, events...)
-	if errApply != nil {
-		return nil, errApply
-	}
-
-	c.logger.Sugar().Infof(
-		"saved %v event(s) for aggregate %v. current version is: %v (%v elapsed)",
-		len(events),
-		*aggregateID,
-		*version,
-		time.Since(start),
-	)
-
-	return events, nil
+	return payload, nil
 }
 
-func (c *commandHandler) handleDeleteUser(ctx context.Context, handler *commandHandler, command *loyalty.DeleteUser) ([]eventsource.Event, error) {
+func newDeleteUserPayload() ([]byte, error) {
 	userPayload := &Payload{
 		DeletedAt: eventsource.TimeNow(),
 	}
@@ -118,24 +101,78 @@ func (c *commandHandler) handleDeleteUser(ctx context.Context, handler *commandH
 		return nil, fmt.Errorf("error occurred while serializing command payload: DeleteUser")
 	}
 
-	// TODO: Check to make sure record isn't already deleted
-	agg, err := handler.repo.Load(ctx, command.AggregateID())
+	return payload, nil
+}
+
+func (c *commandHandler) handleCreateUser(ctx context.Context, command *loyalty.CreateUser) ([]eventsource.Event, error) {
+	payload, errPayload := newCreateUserPayload(&command.Username, &command.Email)
+	if errPayload != nil {
+		return nil, errPayload
+	}
+
+	events := []eventsource.Event{
+		*eventsource.NewEvent(command.AggregateID(), userCreatedEventType, 1, payload),
+	}
+	errSave := c.persist(ctx, events)
+	if errSave != nil {
+		return nil, errSave
+	}
+
+	return events, nil
+}
+
+func (c *commandHandler) handleDeleteUser(ctx context.Context, command *loyalty.DeleteUser) ([]eventsource.Event, error) {
+	payload, errPayload := newDeleteUserPayload()
+	if errPayload != nil {
+		return nil, errPayload
+	}
+
+	user, err := c.getUserAggregate(ctx, command.AggregateID())
+	if err != nil {
+		return nil, err
+	}
+
+	events := []eventsource.Event{
+		*eventsource.NewEvent(command.AggregateID(), userDeletedEventType, user.Version+1, payload),
+	}
+
+	errSave := c.persist(ctx, events)
+	if errSave != nil {
+		return nil, errSave
+	}
+
+	return events, nil
+}
+
+func (c *commandHandler) getUserAggregate(ctx context.Context, aggregateID string) (*User, error) {
+	agg, err := c.repo.Load(ctx, aggregateID)
 	if err != nil {
 		return nil, errors.Wrapf(
 			err,
 			"error occurred while trying to handle delete user command for aggregate: %v\n",
-			command.AggregateID(),
+			aggregateID,
 		)
 	}
 
-	events := []eventsource.Event{
-		*eventsource.NewEvent(command.AggregateID(), userDeletedEventType, agg.EventVersion()+1, payload),
+	var user *User
+	var ok bool
+	if user, ok = agg.(*User); !ok {
+		return nil, errors.New("unable to load aggregate history from the store. invalid type returned")
 	}
 
+	// Check that command is valid for the current state of the aggregate
+	if user.DeletedAt != nil {
+		return nil, errors.New("error executing command: can not delete a user that's already deleted")
+	}
+
+	return user, nil
+}
+
+func (c *commandHandler) persist(ctx context.Context, events []eventsource.Event) error {
 	start := time.Now()
 	aggregateID, version, errApply := c.repo.Apply(ctx, events...)
 	if errApply != nil {
-		return nil, errApply
+		return errApply
 	}
 
 	c.logger.Sugar().Infof(
@@ -146,5 +183,5 @@ func (c *commandHandler) handleDeleteUser(ctx context.Context, handler *commandH
 		time.Since(start),
 	)
 
-	return events, nil
+	return nil
 }

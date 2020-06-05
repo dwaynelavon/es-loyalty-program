@@ -6,11 +6,13 @@ package graph
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/dwaynelavon/es-loyalty-program/graph/generated"
 	"github.com/dwaynelavon/es-loyalty-program/graph/model"
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/eventsource"
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/loyalty"
+	"github.com/dwaynelavon/es-loyalty-program/internal/app/user"
 )
 
 func (r *mutationResolver) UserCreate(ctx context.Context, username string, email string) (*model.UserCreateResponse, error) {
@@ -19,8 +21,8 @@ func (r *mutationResolver) UserCreate(ctx context.Context, username string, emai
 		CommandModel: eventsource.CommandModel{
 			ID: id,
 		},
-		Username: "admin",
-		Email:    "string",
+		Username: username,
+		Email:    email,
 	})
 	if err != nil {
 		return &model.UserCreateResponse{
@@ -52,7 +54,11 @@ func (r *mutationResolver) UserDelete(ctx context.Context, userID string) (*mode
 	}, nil
 }
 
-func (r *queryResolver) Users(ctx context.Context) ([]*model.User, error) {
+func (r *queryResolver) Users(ctx context.Context) ([]user.UserDTO, error) {
+	return r.UserReadModel.Users(ctx)
+}
+
+func (r *userResolver) DeletedAt(ctx context.Context, obj *user.UserDTO) (*time.Time, error) {
 	panic(fmt.Errorf("not implemented"))
 }
 
@@ -62,5 +68,9 @@ func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResol
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
+// User returns generated.UserResolver implementation.
+func (r *Resolver) User() generated.UserResolver { return &userResolver{r} }
+
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
+type userResolver struct{ *Resolver }

@@ -6,19 +6,10 @@ import (
 	"fmt"
 	"io"
 	"strconv"
-	"time"
 )
 
 type NewUser struct {
 	Username string `json:"username"`
-}
-
-type User struct {
-	UserID    *string    `json:"userId"`
-	CreatedAt time.Time  `json:"createdAt"`
-	UpdatedAt time.Time  `json:"updatedAt"`
-	DeletedAt *time.Time `json:"deletedAt"`
-	Username  string     `json:"username"`
 }
 
 type UserCreateResponse struct {
