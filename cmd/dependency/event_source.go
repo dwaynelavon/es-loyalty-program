@@ -17,7 +17,6 @@ func NewDispatcher(logger *zap.Logger, firestoreClient *firestore.Client, eventB
 		Logger:   logger,
 		EventBus: eventBus,
 	}))
-	_ = dispatcher.Connect()
 
 	return dispatcher
 }

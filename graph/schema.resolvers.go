@@ -17,6 +17,7 @@ import (
 
 func (r *mutationResolver) UserCreate(ctx context.Context, username string, email string) (*model.UserCreateResponse, error) {
 	id := eventsource.NewUUID()
+
 	err := r.Dispatcher.Dispatch(context.Background(), &loyalty.CreateUser{
 		CommandModel: eventsource.CommandModel{
 			ID: id,
@@ -29,6 +30,7 @@ func (r *mutationResolver) UserCreate(ctx context.Context, username string, emai
 			Status: model.StatusRejected,
 		}, err
 	}
+
 	return &model.UserCreateResponse{
 		Status:   model.StatusAccepted,
 		Username: &username,

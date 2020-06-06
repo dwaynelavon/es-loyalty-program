@@ -105,6 +105,12 @@ func newDeleteUserPayload() ([]byte, error) {
 }
 
 func (c *commandHandler) handleCreateUser(ctx context.Context, command *loyalty.CreateUser) ([]eventsource.Event, error) {
+	username := command.Username
+	email := command.Email
+	if username == "" || email == "" {
+		return nil, errors.New("email and username must be defined when creating user")
+	}
+
 	payload, errPayload := newCreateUserPayload(&command.Username, &command.Email)
 	if errPayload != nil {
 		return nil, errPayload
