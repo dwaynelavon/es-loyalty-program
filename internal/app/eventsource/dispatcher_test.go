@@ -2,12 +2,77 @@ package eventsource
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap/zaptest"
 )
+
+/* ----- tests ----- */
+func TestConnect_BlankIDError(t *testing.T) {
+	assert := assert.New(t)
+
+	dispatcher := NewDispatcher(zaptest.NewLogger(t))
+	err := dispatcher.Dispatch(context.Background(), &mockCommand{
+		id: "",
+	})
+
+	assert.EqualError(err, errBlankCommandAggID.Error())
+}
+
+func TestConnect_NoHandlerError(t *testing.T) {
+	assert := assert.New(t)
+
+	dispatcher := NewDispatcher(zaptest.NewLogger(t))
+	err := dispatcher.Dispatch(context.Background(), &mockCommand{
+		id: "123123",
+	})
+
+	assert.EqualError(err, errMissingDispatchHandlerForCommand.Error())
+}
+
+func TestHandleDispatch(t *testing.T) {
+	repo := new(mockRepo)
+	commandHandler := newMockCommandHandler(nil)
+
+	dispatcher := NewDispatcher(zaptest.NewLogger(t))
+	dispatcher.RegisterHandler(commandHandler)
+
+	err := dispatcher.Dispatch(
+		context.Background(),
+		&mockCommand{
+			id: "123123",
+		},
+	)
+
+	// Expect mocked functions to be called
+	assert.Nil(t, err)
+	repo.AssertExpectations(t)
+	commandHandler.AssertExpectations(t)
+}
+
+func TestHandleDispatch_CommandHandlerError(t *testing.T) {
+	repo := new(mockRepo)
+	errCommand := errors.New("new command error")
+	commandHandler := newMockCommandHandler(errCommand)
+
+	dispatcher := NewDispatcher(zaptest.NewLogger(t))
+	dispatcher.RegisterHandler(commandHandler)
+
+	err := dispatcher.Dispatch(
+		context.Background(),
+		&mockCommand{
+			id: "123123",
+		},
+	)
+
+	// Expect mocked functions to be called
+	assert.EqualError(t, err, errCommand.Error())
+	repo.AssertExpectations(t)
+	commandHandler.AssertExpectations(t)
+}
 
 /* ----- repo ----- */
 type mockRepo struct {
@@ -61,69 +126,9 @@ func (m *mockCommandHandler) CommandsHandled() []Command {
 	}
 }
 
-func TestConnect_NoHandlerError(t *testing.T) {
-	assert := assert.New(t)
-
-	dispatcher := NewDispatcher(zaptest.NewLogger(t))
-	err := dispatcher.Connect()
-
-	assert.EqualError(err, errMissingDispatcherHandlers.Error())
-
-	dispatcher.RegisterHandler(&mockCommandHandler{})
-	err = dispatcher.Connect()
-
-	assert.Nil(err)
-}
-
-func TestFilterInvalidCommands_InvalidCommandError(t *testing.T) {
-	assert := assert.New(t)
-
-	filter := filterInvalidCommandWithLogger(zaptest.NewLogger(t))
-	ok := filter(nil)
-
-	assert.False(ok)
-}
-
-func TestFilterInvalidCommands_BlankIDError(t *testing.T) {
-	assert := assert.New(t)
-
-	filter := filterInvalidCommandWithLogger(zaptest.NewLogger(t))
-
-	ok := filter(&CommandDescriptor{
-		Ctx:     context.TODO(),
-		Command: &mockCommand{},
-	})
-
-	assert.False(ok)
-}
-
-func TestHandleDispatch_HappyPath(t *testing.T) {
-
-	var (
-		ctx = context.TODO()
-		id  = "123123"
-	)
-
-	// Set up the mocked functions
-	repo := new(mockRepo)
+/* ----- helpers ----- */
+func newMockCommandHandler(returnedError error) *mockCommandHandler {
 	commandHandler := new(mockCommandHandler)
-	commandHandler.On("Handle", mock.Anything, mock.Anything).Return(nil)
-
-	// Create dispatcher and register handler
-	dispatcher := NewDispatcher(zaptest.NewLogger(t))
-	dispatcher.RegisterHandler(commandHandler)
-	_ = dispatcher.Connect()
-
-	// Create dispatch handler and dispatsch a command
-	dispatchHandler := handlerDispatchWithDispatcher(dispatcher)
-	dispatchHandler(CommandDescriptor{
-		Ctx: ctx,
-		Command: &mockCommand{
-			id: id,
-		},
-	})
-
-	// Expect mocked functions to be called
-	repo.AssertExpectations(t)
-	commandHandler.AssertExpectations(t)
+	commandHandler.On("Handle", mock.Anything, mock.Anything).Return(returnedError)
+	return commandHandler
 }

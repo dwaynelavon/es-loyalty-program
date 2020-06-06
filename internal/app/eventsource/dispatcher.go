@@ -8,9 +8,9 @@ import (
 )
 
 var (
-	errMissingDispatcherHandlers = errors.New("cannot connect a dispatcher without any registered handlers")
-	errInvalidCommand            = errors.New("only eventsource.commands may be handled by the dispatcher")
-	errBlankID                   = errors.New("command provided to repository.Apply may not contain a blank AggregateID")
+	errMissingDispatchHandlerForCommand = errors.New("command does not have a registered command handler")
+	errMissingDispatcherHandlers        = errors.New("cannot connect a dispatcher without any registered handlers")
+	errBlankCommandAggID                = errors.New("all commands must have non-blank aggregate id")
 )
 
 type CommandHandler interface {
@@ -46,7 +46,7 @@ type CommandDescriptor struct {
 /* ----- exported ----- */
 func (d *dispatcher) Dispatch(ctx context.Context, cmd Command) error {
 	if cmd.AggregateID() == "" {
-		return errors.New("all events must have non-blank aggregate id")
+		return errBlankCommandAggID
 	}
 
 	handler, errHandler := d.getHandler(cmd)
@@ -80,7 +80,7 @@ func (d *dispatcher) RegisterHandler(c CommandHandler) {
 func (d *dispatcher) getHandler(command Command) (CommandHandler, error) {
 	handler, ok := d.handlers[typeOf(command)]
 	if !ok {
-		return nil, errors.New("command does not have a registered command handler")
+		return nil, errMissingDispatchHandlerForCommand
 	}
 	return handler, nil
 }
