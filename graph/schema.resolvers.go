@@ -5,8 +5,6 @@ package graph
 
 import (
 	"context"
-	"fmt"
-	"time"
 
 	"github.com/dwaynelavon/es-loyalty-program/graph/generated"
 	"github.com/dwaynelavon/es-loyalty-program/graph/model"
@@ -15,24 +13,22 @@ import (
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/user"
 )
 
-func (r *mutationResolver) UserCreate(ctx context.Context, username string, email string) (*model.UserCreateResponse, error) {
+func (r *mutationResolver) UserCreate(ctx context.Context, username string, email string, referredByCode *string) (*model.UserCreateResponse, error) {
 	id := eventsource.NewUUID()
 
 	err := r.Dispatcher.Dispatch(context.Background(), &loyalty.CreateUser{
 		CommandModel: eventsource.CommandModel{
 			ID: id,
 		},
-		Username: username,
-		Email:    email,
+		Username:       username,
+		Email:          email,
+		ReferredByCode: referredByCode,
 	})
 	if err != nil {
-		return &model.UserCreateResponse{
-			Status: model.StatusRejected,
-		}, err
+		return nil, err
 	}
 
 	return &model.UserCreateResponse{
-		Status:   model.StatusAccepted,
 		Username: &username,
 		UserID:   &id,
 		Email:    &email,
@@ -46,13 +42,26 @@ func (r *mutationResolver) UserDelete(ctx context.Context, userID string) (*mode
 		},
 	})
 	if err != nil {
-		return &model.UserDeleteResponse{
-			Status: model.StatusRejected,
-		}, err
+		return nil, err
 	}
 	return &model.UserDeleteResponse{
-		Status: model.StatusAccepted,
 		UserID: &userID,
+	}, nil
+}
+
+func (r *mutationResolver) UserReferralCreate(ctx context.Context, userID string, referredUserEmail string) (*model.UserReferralCreatedResponse, error) {
+	err := r.Dispatcher.Dispatch(ctx, &loyalty.CreateReferral{
+		CommandModel: eventsource.CommandModel{
+			ID: userID,
+		},
+		ReferredUserEmail: referredUserEmail,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &model.UserReferralCreatedResponse{
+		UserID:            &userID,
+		ReferredUserEmail: &referredUserEmail,
 	}, nil
 }
 
@@ -60,8 +69,8 @@ func (r *queryResolver) Users(ctx context.Context) ([]user.UserDTO, error) {
 	return r.UserReadModel.Users(ctx)
 }
 
-func (r *userResolver) DeletedAt(ctx context.Context, obj *user.UserDTO) (*time.Time, error) {
-	panic(fmt.Errorf("not implemented"))
+func (r *userResolver) Referrals(ctx context.Context, obj *user.UserDTO) ([]user.Referral, error) {
+	return r.UserReadModel.Referrals(ctx, obj.UserID)
 }
 
 // Mutation returns generated.MutationResolver implementation.

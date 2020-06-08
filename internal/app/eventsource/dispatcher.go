@@ -80,7 +80,7 @@ func (d *dispatcher) RegisterHandler(c CommandHandler) {
 func (d *dispatcher) getHandler(command Command) (CommandHandler, error) {
 	handler, ok := d.handlers[typeOf(command)]
 	if !ok {
-		return nil, errMissingDispatchHandlerForCommand
+		return nil, errors.Wrapf(errMissingDispatchHandlerForCommand, "type: %T", command)
 	}
 	return handler, nil
 }

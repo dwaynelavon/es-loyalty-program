@@ -8,23 +8,37 @@ import (
 	"go.uber.org/zap"
 )
 
-func NewDispatcher(logger *zap.Logger, firestoreClient *firestore.Client, eventBus eventsource.EventBus) eventsource.CommandDispatcher {
+func RegisterDispatchHandlers(
+	logger *zap.Logger,
+	firestoreClient *firestore.Client,
+	eventBus eventsource.EventBus,
+	dispatcher eventsource.CommandDispatcher,
+) error {
 	userRepository := newUserRepository(logger, firestoreClient)
-
-	dispatcher := eventsource.NewDispatcher(logger)
 	dispatcher.RegisterHandler(user.NewUserCommandHandler(user.CommandHandlerParams{
 		Repo:     userRepository,
 		Logger:   logger,
 		EventBus: eventBus,
 	}))
+	return nil
+}
 
-	return dispatcher
+func RegisterEventHandlers(
+	logger *zap.Logger,
+	firestoreClient *firestore.Client,
+	eventBus eventsource.EventBus,
+	dispatcher eventsource.CommandDispatcher,
+	userRepo user.ReadRepo,
+) error {
+	eventBus.RegisterHandler(user.NewEventHandler(logger, readmodel.NewUserStore(firestoreClient)))
+	eventBus.RegisterHandler(user.NewSaga(logger, dispatcher, userRepo))
+	return eventBus.Connect()
+}
+
+func NewDispatcher(logger *zap.Logger, firestoreClient *firestore.Client) eventsource.CommandDispatcher {
+	return eventsource.NewDispatcher(logger)
 }
 
 func NewEventBus(logger *zap.Logger, firestoreClient *firestore.Client) eventsource.EventBus {
-	bus := eventsource.NewEventBus(logger)
-	bus.RegisterHandler(user.NewEventHandler(logger, readmodel.NewUserStore(firestoreClient)))
-	_ = bus.Connect()
-
-	return bus
+	return eventsource.NewEventBus(logger)
 }

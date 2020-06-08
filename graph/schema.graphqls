@@ -4,18 +4,29 @@
 
 scalar Time
 
-enum Status {
-    Accepted
-    Rejected
+enum ReferralStatus {
+    Created
+    Sent
+    Completed
+}
+
+type Referral {
+    id: String!
+    status: ReferralStatus!
+    referredUserEmail: String!
+    referralCode: String!
+    createdAt: Time!
+    updatedAt: Time!
 }
 
 type User {
     userId: String
     createdAt: Time!
     updatedAt: Time!
-    deletedAt: Time
     username: String!
     email: String!
+    referralCode: String!
+    referrals: [Referral!]!
 }
 
 type Query {
@@ -30,15 +41,26 @@ type UserCreateResponse {
     userId: String
     username: String
     email: String
-    status: Status!
 }
 
 type UserDeleteResponse {
     userId: String
-    status: Status!
+}
+
+type UserReferralCreatedResponse {
+    userId: String
+    referredUserEmail: String
 }
 
 type Mutation {
-    userCreate(username: String!, email: String!): UserCreateResponse!
+    userCreate(
+        username: String!
+        email: String!
+        referredByCode: String
+    ): UserCreateResponse!
     userDelete(userId: String!): UserDeleteResponse!
+    userReferralCreate(
+        userId: String!
+        referredUserEmail: String!
+    ): UserReferralCreatedResponse
 }

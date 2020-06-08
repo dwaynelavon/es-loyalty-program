@@ -18,7 +18,12 @@ func main() {
 
 	modules := fx.Options()
 
-	invocations := fx.Invoke(dependency.LoadEnv, dependency.RegisterRoutes)
+	invocations := fx.Invoke(
+		dependency.LoadEnv,
+		dependency.RegisterEventHandlers,
+		dependency.RegisterDispatchHandlers,
+		dependency.RegisterRoutes,
+	)
 
 	app := fx.New(
 		dependencies,

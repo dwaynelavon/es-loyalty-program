@@ -28,6 +28,7 @@ type EventBus interface {
 	RegisterHandler(EventHandler)
 }
 
+// TODO: Add tests for event bus
 type eventBus struct {
 	logger   *zap.Logger
 	handlers map[string][]EventHandler
@@ -106,13 +107,14 @@ func handlePublishWithBus(e *eventBus) rxgo.NextFunc {
 			errHandle := v.Handle(context.Background(), event)
 
 			if errHandle != nil {
+				wrappedError := errors.Wrapf(errHandle, "error occurred handling event %T for aggregate %v with handler %T",
+					event,
+					event.AggregateID,
+					v,
+				)
 				e.logger.
-					Sugar().
-					Errorf("error occurred handling event %T for aggregate %v with handler %T",
-						event,
-						event.AggregateID,
-						v,
-					)
+					Sugar().Error(wrappedError)
+				return
 			}
 
 			e.logger.Sugar().Infof(

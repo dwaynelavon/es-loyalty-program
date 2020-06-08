@@ -113,11 +113,7 @@ func (r *repository) load(ctx context.Context, aggregateID string) (eventsource.
 	agg := r.newAggregate(aggregateID)
 	errBuildUserAgg := agg.Apply(history)
 	if errBuildUserAgg != nil {
-		return nil, errors.Wrapf(
-			errBuildUserAgg,
-			"error occurred while trying to build user aggregate for aggregate: %v",
-			aggregateID,
-		)
+		return nil, errBuildUserAgg
 	}
 
 	return agg, nil

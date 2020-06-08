@@ -18,35 +18,34 @@ func NewUserStore(firestoreClient *firestore.Client) user.ReadRepo {
 	}
 }
 
-var userCollection = "users_es"
-
 func (s *userStore) CreateUser(ctx context.Context, user user.UserDTO) error {
-	_, err := s.firestoreClient.
-		Collection(userCollection).
-		NewDoc().
+	_, err := s.
+		getUserDoc(user.UserID).
 		Set(ctx, user)
 
 	return err
 }
 
-func (s *userStore) DeleteUser(ctx context.Context, userID string) error {
-	doc, docErr := s.firestoreClient.
-		Collection(userCollection).
-		Where("userId", "==", userID).
-		Documents(ctx).
-		Next()
-	if docErr != nil {
-		return docErr
-	}
+func (s *userStore) CreateReferral(ctx context.Context, userID string, referral user.Referral) error {
+	_, err := s.
+		getUserReferralCollection(userID).
+		Doc(referral.ID).
+		Create(ctx, referral)
 
-	_, err := doc.Ref.Delete(ctx)
+	return err
+}
+
+func (s *userStore) DeleteUser(ctx context.Context, userID string) error {
+	_, err := s.
+		getUserDoc(userID).
+		Delete(ctx)
 
 	return err
 }
 
 func (s *userStore) Users(ctx context.Context) ([]user.UserDTO, error) {
-	docs, err := s.firestoreClient.
-		Collection(userCollection).
+	docs, err := s.
+		getUserCollection().
 		Documents(ctx).
 		GetAll()
 
@@ -57,13 +56,88 @@ func (s *userStore) Users(ctx context.Context) ([]user.UserDTO, error) {
 	return transformSnapshotsToUserDTOs(docs)
 }
 
-func transformSnapshotsToUserDTOs(docs []*firestore.DocumentSnapshot) ([]user.UserDTO, error) {
+func (s *userStore) UpdateReferralStatus(ctx context.Context, userID string, referralID string, status user.ReferralStatus) error {
+	_, err := s.
+		getUserReferralCollection(userID).
+		Doc(referralID).
+		Update(ctx, []firestore.Update{
+			{
+				Path: "status", Value: string(status),
+			},
+		})
+
+	return err
+}
+
+func (s *userStore) UserByReferralCode(ctx context.Context, referralCode string) (*user.UserDTO, error) {
+	doc, err := s.
+		getUserCollection().
+		Where("referralCode", "==", referralCode).
+		Documents(ctx).
+		Next()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return transformSnapshotToUserDTO(doc)
+}
+
+func (s *userStore) Referrals(ctx context.Context, userID string) ([]user.Referral, error) {
+	docs, err := s.
+		getUserReferralCollection(userID).
+		Documents(ctx).
+		GetAll()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return transformSnapshotsToReferrals(docs)
+}
+
+/* ----- helpers ----- */
+func (s *userStore) getUserCollection() *firestore.CollectionRef {
+	return s.firestoreClient.
+		Collection("users_es")
+}
+
+func (s *userStore) getUserReferralCollection(userID string) *firestore.CollectionRef {
+	return s.
+		getUserDoc(userID).
+		Collection("referrals")
+}
+
+func (s *userStore) getUserDoc(userID string) *firestore.DocumentRef {
+	return s.
+		getUserCollection().
+		Doc(userID)
+}
+
+func transformSnapshotToUserDTO(snapshot *firestore.DocumentSnapshot) (*user.UserDTO, error) {
+	var user user.UserDTO
+	err := snapshot.DataTo(&user)
+	return &user, err
+}
+
+func transformSnapshotsToUserDTOs(snapshots []*firestore.DocumentSnapshot) ([]user.UserDTO, error) {
 	users := []user.UserDTO{}
 	var err error
-	for _, v := range docs {
+	for _, v := range snapshots {
 		var user user.UserDTO
 		err = v.DataTo(&user)
 		users = append(users, user)
 	}
 	return users, err
+}
+
+func transformSnapshotsToReferrals(snapshots []*firestore.DocumentSnapshot) ([]user.Referral, error) {
+	referrals := []user.Referral{}
+	var err error
+	for _, v := range snapshots {
+		var referral user.Referral
+		err = v.DataTo(&referral)
+		referrals = append(referrals, referral)
+	}
+	return referrals, err
 }

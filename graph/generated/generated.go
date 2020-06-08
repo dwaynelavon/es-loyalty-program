@@ -47,45 +47,60 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	Mutation struct {
-		UserCreate func(childComplexity int, username string, email string) int
-		UserDelete func(childComplexity int, userID string) int
+		UserCreate         func(childComplexity int, username string, email string, referredByCode *string) int
+		UserDelete         func(childComplexity int, userID string) int
+		UserReferralCreate func(childComplexity int, userID string, referredUserEmail string) int
 	}
 
 	Query struct {
 		Users func(childComplexity int) int
 	}
 
+	Referral struct {
+		CreatedAt         func(childComplexity int) int
+		ID                func(childComplexity int) int
+		ReferralCode      func(childComplexity int) int
+		ReferredUserEmail func(childComplexity int) int
+		Status            func(childComplexity int) int
+		UpdatedAt         func(childComplexity int) int
+	}
+
 	User struct {
-		CreatedAt func(childComplexity int) int
-		DeletedAt func(childComplexity int) int
-		Email     func(childComplexity int) int
-		UpdatedAt func(childComplexity int) int
-		UserId    func(childComplexity int) int
-		Username  func(childComplexity int) int
+		CreatedAt    func(childComplexity int) int
+		Email        func(childComplexity int) int
+		ReferralCode func(childComplexity int) int
+		Referrals    func(childComplexity int) int
+		UpdatedAt    func(childComplexity int) int
+		UserID       func(childComplexity int) int
+		Username     func(childComplexity int) int
 	}
 
 	UserCreateResponse struct {
 		Email    func(childComplexity int) int
-		Status   func(childComplexity int) int
 		UserID   func(childComplexity int) int
 		Username func(childComplexity int) int
 	}
 
 	UserDeleteResponse struct {
-		Status func(childComplexity int) int
 		UserID func(childComplexity int) int
+	}
+
+	UserReferralCreatedResponse struct {
+		ReferredUserEmail func(childComplexity int) int
+		UserID            func(childComplexity int) int
 	}
 }
 
 type MutationResolver interface {
-	UserCreate(ctx context.Context, username string, email string) (*model.UserCreateResponse, error)
+	UserCreate(ctx context.Context, username string, email string, referredByCode *string) (*model.UserCreateResponse, error)
 	UserDelete(ctx context.Context, userID string) (*model.UserDeleteResponse, error)
+	UserReferralCreate(ctx context.Context, userID string, referredUserEmail string) (*model.UserReferralCreatedResponse, error)
 }
 type QueryResolver interface {
 	Users(ctx context.Context) ([]user.UserDTO, error)
 }
 type UserResolver interface {
-	DeletedAt(ctx context.Context, obj *user.UserDTO) (*time.Time, error)
+	Referrals(ctx context.Context, obj *user.UserDTO) ([]user.Referral, error)
 }
 
 type executableSchema struct {
@@ -113,7 +128,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.UserCreate(childComplexity, args["username"].(string), args["email"].(string)), true
+		return e.complexity.Mutation.UserCreate(childComplexity, args["username"].(string), args["email"].(string), args["referredByCode"].(*string)), true
 
 	case "Mutation.userDelete":
 		if e.complexity.Mutation.UserDelete == nil {
@@ -127,12 +142,66 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.UserDelete(childComplexity, args["userId"].(string)), true
 
+	case "Mutation.userReferralCreate":
+		if e.complexity.Mutation.UserReferralCreate == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_userReferralCreate_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UserReferralCreate(childComplexity, args["userId"].(string), args["referredUserEmail"].(string)), true
+
 	case "Query.users":
 		if e.complexity.Query.Users == nil {
 			break
 		}
 
 		return e.complexity.Query.Users(childComplexity), true
+
+	case "Referral.createdAt":
+		if e.complexity.Referral.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.Referral.CreatedAt(childComplexity), true
+
+	case "Referral.id":
+		if e.complexity.Referral.ID == nil {
+			break
+		}
+
+		return e.complexity.Referral.ID(childComplexity), true
+
+	case "Referral.referralCode":
+		if e.complexity.Referral.ReferralCode == nil {
+			break
+		}
+
+		return e.complexity.Referral.ReferralCode(childComplexity), true
+
+	case "Referral.referredUserEmail":
+		if e.complexity.Referral.ReferredUserEmail == nil {
+			break
+		}
+
+		return e.complexity.Referral.ReferredUserEmail(childComplexity), true
+
+	case "Referral.status":
+		if e.complexity.Referral.Status == nil {
+			break
+		}
+
+		return e.complexity.Referral.Status(childComplexity), true
+
+	case "Referral.updatedAt":
+		if e.complexity.Referral.UpdatedAt == nil {
+			break
+		}
+
+		return e.complexity.Referral.UpdatedAt(childComplexity), true
 
 	case "User.createdAt":
 		if e.complexity.User.CreatedAt == nil {
@@ -141,19 +210,26 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.User.CreatedAt(childComplexity), true
 
-	case "User.deletedAt":
-		if e.complexity.User.DeletedAt == nil {
-			break
-		}
-
-		return e.complexity.User.DeletedAt(childComplexity), true
-
 	case "User.email":
 		if e.complexity.User.Email == nil {
 			break
 		}
 
 		return e.complexity.User.Email(childComplexity), true
+
+	case "User.referralCode":
+		if e.complexity.User.ReferralCode == nil {
+			break
+		}
+
+		return e.complexity.User.ReferralCode(childComplexity), true
+
+	case "User.referrals":
+		if e.complexity.User.Referrals == nil {
+			break
+		}
+
+		return e.complexity.User.Referrals(childComplexity), true
 
 	case "User.updatedAt":
 		if e.complexity.User.UpdatedAt == nil {
@@ -163,11 +239,11 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		return e.complexity.User.UpdatedAt(childComplexity), true
 
 	case "User.userId":
-		if e.complexity.User.UserId == nil {
+		if e.complexity.User.UserID == nil {
 			break
 		}
 
-		return e.complexity.User.UserId(childComplexity), true
+		return e.complexity.User.UserID(childComplexity), true
 
 	case "User.username":
 		if e.complexity.User.Username == nil {
@@ -183,13 +259,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.UserCreateResponse.Email(childComplexity), true
 
-	case "UserCreateResponse.status":
-		if e.complexity.UserCreateResponse.Status == nil {
-			break
-		}
-
-		return e.complexity.UserCreateResponse.Status(childComplexity), true
-
 	case "UserCreateResponse.userId":
 		if e.complexity.UserCreateResponse.UserID == nil {
 			break
@@ -204,19 +273,26 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.UserCreateResponse.Username(childComplexity), true
 
-	case "UserDeleteResponse.status":
-		if e.complexity.UserDeleteResponse.Status == nil {
-			break
-		}
-
-		return e.complexity.UserDeleteResponse.Status(childComplexity), true
-
 	case "UserDeleteResponse.userId":
 		if e.complexity.UserDeleteResponse.UserID == nil {
 			break
 		}
 
 		return e.complexity.UserDeleteResponse.UserID(childComplexity), true
+
+	case "UserReferralCreatedResponse.referredUserEmail":
+		if e.complexity.UserReferralCreatedResponse.ReferredUserEmail == nil {
+			break
+		}
+
+		return e.complexity.UserReferralCreatedResponse.ReferredUserEmail(childComplexity), true
+
+	case "UserReferralCreatedResponse.userId":
+		if e.complexity.UserReferralCreatedResponse.UserID == nil {
+			break
+		}
+
+		return e.complexity.UserReferralCreatedResponse.UserID(childComplexity), true
 
 	}
 	return 0, false
@@ -288,18 +364,29 @@ var sources = []*ast.Source{
 
 scalar Time
 
-enum Status {
-    Accepted
-    Rejected
+enum ReferralStatus {
+    Created
+    Sent
+    Completed
+}
+
+type Referral {
+    id: String!
+    status: ReferralStatus!
+    referredUserEmail: String!
+    referralCode: String!
+    createdAt: Time!
+    updatedAt: Time!
 }
 
 type User {
     userId: String
     createdAt: Time!
     updatedAt: Time!
-    deletedAt: Time
     username: String!
     email: String!
+    referralCode: String!
+    referrals: [Referral!]!
 }
 
 type Query {
@@ -314,17 +401,28 @@ type UserCreateResponse {
     userId: String
     username: String
     email: String
-    status: Status!
 }
 
 type UserDeleteResponse {
     userId: String
-    status: Status!
+}
+
+type UserReferralCreatedResponse {
+    userId: String
+    referredUserEmail: String
 }
 
 type Mutation {
-    userCreate(username: String!, email: String!): UserCreateResponse!
+    userCreate(
+        username: String!
+        email: String!
+        referredByCode: String
+    ): UserCreateResponse!
     userDelete(userId: String!): UserDeleteResponse!
+    userReferralCreate(
+        userId: String!
+        referredUserEmail: String!
+    ): UserReferralCreatedResponse
 }
 `, BuiltIn: false},
 }
@@ -353,6 +451,14 @@ func (ec *executionContext) field_Mutation_userCreate_args(ctx context.Context, 
 		}
 	}
 	args["email"] = arg1
+	var arg2 *string
+	if tmp, ok := rawArgs["referredByCode"]; ok {
+		arg2, err = ec.unmarshalOString2ᚖstring(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["referredByCode"] = arg2
 	return args, nil
 }
 
@@ -367,6 +473,28 @@ func (ec *executionContext) field_Mutation_userDelete_args(ctx context.Context, 
 		}
 	}
 	args["userId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_userReferralCreate_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["userId"]; ok {
+		arg0, err = ec.unmarshalNString2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["userId"] = arg0
+	var arg1 string
+	if tmp, ok := rawArgs["referredUserEmail"]; ok {
+		arg1, err = ec.unmarshalNString2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["referredUserEmail"] = arg1
 	return args, nil
 }
 
@@ -444,7 +572,7 @@ func (ec *executionContext) _Mutation_userCreate(ctx context.Context, field grap
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().UserCreate(rctx, args["username"].(string), args["email"].(string))
+		return ec.resolvers.Mutation().UserCreate(rctx, args["username"].(string), args["email"].(string), args["referredByCode"].(*string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -500,6 +628,44 @@ func (ec *executionContext) _Mutation_userDelete(ctx context.Context, field grap
 	res := resTmp.(*model.UserDeleteResponse)
 	fc.Result = res
 	return ec.marshalNUserDeleteResponse2ᚖgithubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋgraphᚋmodelᚐUserDeleteResponse(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Mutation_userReferralCreate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Mutation",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Mutation_userReferralCreate_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().UserReferralCreate(rctx, args["userId"].(string), args["referredUserEmail"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.UserReferralCreatedResponse)
+	fc.Result = res
+	return ec.marshalOUserReferralCreatedResponse2ᚖgithubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋgraphᚋmodelᚐUserReferralCreatedResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_users(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -605,6 +771,210 @@ func (ec *executionContext) _Query___schema(ctx context.Context, field graphql.C
 	return ec.marshalO__Schema2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐSchema(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _Referral_id(ctx context.Context, field graphql.CollectedField, obj *user.Referral) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Referral",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Referral_status(ctx context.Context, field graphql.CollectedField, obj *user.Referral) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Referral",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Status, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(user.ReferralStatus)
+	fc.Result = res
+	return ec.marshalNReferralStatus2githubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋinternalᚋappᚋuserᚐReferralStatus(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Referral_referredUserEmail(ctx context.Context, field graphql.CollectedField, obj *user.Referral) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Referral",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ReferredUserEmail, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Referral_referralCode(ctx context.Context, field graphql.CollectedField, obj *user.Referral) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Referral",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ReferralCode, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Referral_createdAt(ctx context.Context, field graphql.CollectedField, obj *user.Referral) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Referral",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CreatedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(time.Time)
+	fc.Result = res
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Referral_updatedAt(ctx context.Context, field graphql.CollectedField, obj *user.Referral) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Referral",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.UpdatedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(time.Time)
+	fc.Result = res
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _User_userId(ctx context.Context, field graphql.CollectedField, obj *user.UserDTO) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -622,7 +992,7 @@ func (ec *executionContext) _User_userId(ctx context.Context, field graphql.Coll
 	ctx = graphql.WithFieldContext(ctx, fc)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.UserId, nil
+		return obj.UserID, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -704,37 +1074,6 @@ func (ec *executionContext) _User_updatedAt(ctx context.Context, field graphql.C
 	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _User_deletedAt(ctx context.Context, field graphql.CollectedField, obj *user.UserDTO) (ret graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:   "User",
-		Field:    field,
-		Args:     nil,
-		IsMethod: true,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.User().DeletedAt(rctx, obj)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*time.Time)
-	fc.Result = res
-	return ec.marshalOTime2ᚖtimeᚐTime(ctx, field.Selections, res)
-}
-
 func (ec *executionContext) _User_username(ctx context.Context, field graphql.CollectedField, obj *user.UserDTO) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -801,6 +1140,74 @@ func (ec *executionContext) _User_email(ctx context.Context, field graphql.Colle
 	res := resTmp.(string)
 	fc.Result = res
 	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _User_referralCode(ctx context.Context, field graphql.CollectedField, obj *user.UserDTO) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "User",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ReferralCode, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _User_referrals(ctx context.Context, field graphql.CollectedField, obj *user.UserDTO) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "User",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.User().Referrals(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]user.Referral)
+	fc.Result = res
+	return ec.marshalNReferral2ᚕgithubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋinternalᚋappᚋuserᚐReferralᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _UserCreateResponse_userId(ctx context.Context, field graphql.CollectedField, obj *model.UserCreateResponse) (ret graphql.Marshaler) {
@@ -896,40 +1303,6 @@ func (ec *executionContext) _UserCreateResponse_email(ctx context.Context, field
 	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _UserCreateResponse_status(ctx context.Context, field graphql.CollectedField, obj *model.UserCreateResponse) (ret graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:   "UserCreateResponse",
-		Field:    field,
-		Args:     nil,
-		IsMethod: false,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.Status, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(model.Status)
-	fc.Result = res
-	return ec.marshalNStatus2githubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋgraphᚋmodelᚐStatus(ctx, field.Selections, res)
-}
-
 func (ec *executionContext) _UserDeleteResponse_userId(ctx context.Context, field graphql.CollectedField, obj *model.UserDeleteResponse) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -961,7 +1334,7 @@ func (ec *executionContext) _UserDeleteResponse_userId(ctx context.Context, fiel
 	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _UserDeleteResponse_status(ctx context.Context, field graphql.CollectedField, obj *model.UserDeleteResponse) (ret graphql.Marshaler) {
+func (ec *executionContext) _UserReferralCreatedResponse_userId(ctx context.Context, field graphql.CollectedField, obj *model.UserReferralCreatedResponse) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -969,7 +1342,7 @@ func (ec *executionContext) _UserDeleteResponse_status(ctx context.Context, fiel
 		}
 	}()
 	fc := &graphql.FieldContext{
-		Object:   "UserDeleteResponse",
+		Object:   "UserReferralCreatedResponse",
 		Field:    field,
 		Args:     nil,
 		IsMethod: false,
@@ -978,21 +1351,49 @@ func (ec *executionContext) _UserDeleteResponse_status(ctx context.Context, fiel
 	ctx = graphql.WithFieldContext(ctx, fc)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Status, nil
+		return obj.UserID, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
 		return graphql.Null
 	}
 	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
 		return graphql.Null
 	}
-	res := resTmp.(model.Status)
+	res := resTmp.(*string)
 	fc.Result = res
-	return ec.marshalNStatus2githubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋgraphᚋmodelᚐStatus(ctx, field.Selections, res)
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _UserReferralCreatedResponse_referredUserEmail(ctx context.Context, field graphql.CollectedField, obj *model.UserReferralCreatedResponse) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "UserReferralCreatedResponse",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ReferredUserEmail, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) ___Directive_name(ctx context.Context, field graphql.CollectedField, obj *introspection.Directive) (ret graphql.Marshaler) {
@@ -2101,6 +2502,8 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		case "userReferralCreate":
+			out.Values[i] = ec._Mutation_userReferralCreate(ctx, field)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -2156,6 +2559,58 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 	return out
 }
 
+var referralImplementors = []string{"Referral"}
+
+func (ec *executionContext) _Referral(ctx context.Context, sel ast.SelectionSet, obj *user.Referral) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, referralImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Referral")
+		case "id":
+			out.Values[i] = ec._Referral_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "status":
+			out.Values[i] = ec._Referral_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "referredUserEmail":
+			out.Values[i] = ec._Referral_referredUserEmail(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "referralCode":
+			out.Values[i] = ec._Referral_referralCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._Referral_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._Referral_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
 var userImplementors = []string{"User"}
 
 func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj *user.UserDTO) graphql.Marshaler {
@@ -2179,17 +2634,6 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&invalids, 1)
 			}
-		case "deletedAt":
-			field := field
-			out.Concurrently(i, func() (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._User_deletedAt(ctx, field, obj)
-				return res
-			})
 		case "username":
 			out.Values[i] = ec._User_username(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -2200,6 +2644,25 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&invalids, 1)
 			}
+		case "referralCode":
+			out.Values[i] = ec._User_referralCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		case "referrals":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._User_referrals(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -2228,11 +2691,6 @@ func (ec *executionContext) _UserCreateResponse(ctx context.Context, sel ast.Sel
 			out.Values[i] = ec._UserCreateResponse_username(ctx, field, obj)
 		case "email":
 			out.Values[i] = ec._UserCreateResponse_email(ctx, field, obj)
-		case "status":
-			out.Values[i] = ec._UserCreateResponse_status(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -2257,11 +2715,32 @@ func (ec *executionContext) _UserDeleteResponse(ctx context.Context, sel ast.Sel
 			out.Values[i] = graphql.MarshalString("UserDeleteResponse")
 		case "userId":
 			out.Values[i] = ec._UserDeleteResponse_userId(ctx, field, obj)
-		case "status":
-			out.Values[i] = ec._UserDeleteResponse_status(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var userReferralCreatedResponseImplementors = []string{"UserReferralCreatedResponse"}
+
+func (ec *executionContext) _UserReferralCreatedResponse(ctx context.Context, sel ast.SelectionSet, obj *model.UserReferralCreatedResponse) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, userReferralCreatedResponseImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("UserReferralCreatedResponse")
+		case "userId":
+			out.Values[i] = ec._UserReferralCreatedResponse_userId(ctx, field, obj)
+		case "referredUserEmail":
+			out.Values[i] = ec._UserReferralCreatedResponse_referredUserEmail(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -2532,13 +3011,60 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
-func (ec *executionContext) unmarshalNStatus2githubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋgraphᚋmodelᚐStatus(ctx context.Context, v interface{}) (model.Status, error) {
-	var res model.Status
-	return res, res.UnmarshalGQL(v)
+func (ec *executionContext) marshalNReferral2githubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋinternalᚋappᚋuserᚐReferral(ctx context.Context, sel ast.SelectionSet, v user.Referral) graphql.Marshaler {
+	return ec._Referral(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNStatus2githubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋgraphᚋmodelᚐStatus(ctx context.Context, sel ast.SelectionSet, v model.Status) graphql.Marshaler {
-	return v
+func (ec *executionContext) marshalNReferral2ᚕgithubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋinternalᚋappᚋuserᚐReferralᚄ(ctx context.Context, sel ast.SelectionSet, v []user.Referral) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNReferral2githubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋinternalᚋappᚋuserᚐReferral(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
+}
+
+func (ec *executionContext) unmarshalNReferralStatus2githubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋinternalᚋappᚋuserᚐReferralStatus(ctx context.Context, v interface{}) (user.ReferralStatus, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	return user.ReferralStatus(tmp), err
+}
+
+func (ec *executionContext) marshalNReferralStatus2githubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋinternalᚋappᚋuserᚐReferralStatus(ctx context.Context, sel ast.SelectionSet, v user.ReferralStatus) graphql.Marshaler {
+	res := graphql.MarshalString(string(v))
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+	}
+	return res
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v interface{}) (string, error) {
@@ -2910,27 +3436,15 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	return ec.marshalOString2string(ctx, sel, *v)
 }
 
-func (ec *executionContext) unmarshalOTime2timeᚐTime(ctx context.Context, v interface{}) (time.Time, error) {
-	return graphql.UnmarshalTime(v)
+func (ec *executionContext) marshalOUserReferralCreatedResponse2githubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋgraphᚋmodelᚐUserReferralCreatedResponse(ctx context.Context, sel ast.SelectionSet, v model.UserReferralCreatedResponse) graphql.Marshaler {
+	return ec._UserReferralCreatedResponse(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalOTime2timeᚐTime(ctx context.Context, sel ast.SelectionSet, v time.Time) graphql.Marshaler {
-	return graphql.MarshalTime(v)
-}
-
-func (ec *executionContext) unmarshalOTime2ᚖtimeᚐTime(ctx context.Context, v interface{}) (*time.Time, error) {
-	if v == nil {
-		return nil, nil
-	}
-	res, err := ec.unmarshalOTime2timeᚐTime(ctx, v)
-	return &res, err
-}
-
-func (ec *executionContext) marshalOTime2ᚖtimeᚐTime(ctx context.Context, sel ast.SelectionSet, v *time.Time) graphql.Marshaler {
+func (ec *executionContext) marshalOUserReferralCreatedResponse2ᚖgithubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋgraphᚋmodelᚐUserReferralCreatedResponse(ctx context.Context, sel ast.SelectionSet, v *model.UserReferralCreatedResponse) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
-	return ec.marshalOTime2timeᚐTime(ctx, sel, *v)
+	return ec._UserReferralCreatedResponse(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalO__EnumValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐEnumValueᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.EnumValue) graphql.Marshaler {

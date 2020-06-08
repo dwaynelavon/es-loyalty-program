@@ -35,3 +35,11 @@ func TimeNow() *time.Time {
 	t := time.Now()
 	return &t
 }
+
+// IsStringEmpty indicates whether or not a string is empty
+func IsStringEmpty(str *string) bool {
+	if str == nil || *str == "" {
+		return true
+	}
+	return false
+}

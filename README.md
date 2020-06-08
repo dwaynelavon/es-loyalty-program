@@ -24,3 +24,8 @@ POC for a loyalty program with event sourcing in Go
 -   ReferralCreated
 -   ReferralStatusUpdated (Created, Pending, Rejected, Completed)
 -   ReferralCompleted
+
+### TODO
+
+-   Enforce ordering in the read model
+-   Add retries to the event bus

@@ -5,13 +5,19 @@ import (
 	"time"
 
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/eventsource"
+	"github.com/pkg/errors"
 )
 
 // User encapsulates account information about an application user
 type User struct {
-	ID        string     `json:"id"`
-	Version   int        `json:"version"`
-	Username  string     `json:"username"`
+	ID       string `json:"id"`
+	Email    string `json:"email"`
+	Version  int    `json:"version"`
+	Username string `json:"username"`
+	// TODO: should this be a pointer
+	ReferralCode *string `json:"referralCode"`
+	// TODO: Should we include this here? Seems like it should go only in the DTO
+	Referrals []Referral `json:"referrals"`
 	CreatedAt time.Time  `json:"createdAt"`
 	UpdatedAt time.Time  `json:"updatedAt"`
 	DeletedAt *time.Time `json:"deletedAt"`
@@ -40,8 +46,12 @@ func (u *User) Apply(history eventsource.History) error {
 		}
 		errApply := a.Apply(u)
 		if errApply != nil {
-			return fmt.Errorf("error occurred while trying to apply: %v", h.EventType)
+			return errors.Wrapf(errApply, "error occurred while trying to apply %v", h.EventType)
 		}
 	}
 	return nil
+}
+
+func newInvalidPayloadError(eventType string) error {
+	return errors.Errorf("invalid payload provided to %v", eventType)
 }
