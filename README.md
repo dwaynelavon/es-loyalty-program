@@ -29,3 +29,5 @@ POC for a loyalty program with event sourcing in Go
 
 -   Enforce ordering in the read model
 -   Add retries to the event bus
+-   Abstract logging
+-   Add config for max event retry

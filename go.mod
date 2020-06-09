@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/firestore v1.2.0
 	firebase.google.com/go v3.13.0+incompatible
 	github.com/99designs/gqlgen v0.11.3
-	github.com/cenkalti/backoff/v4 v4.0.2 // indirect
+	github.com/cenkalti/backoff/v4 v4.0.2
 	github.com/google/uuid v1.1.1
 	github.com/jinzhu/copier v0.0.0-20190924061706-b57f9002281a
 	github.com/joho/godotenv v1.3.0

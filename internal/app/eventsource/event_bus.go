@@ -2,7 +2,11 @@ package eventsource
 
 import (
 	"context"
+	"fmt"
+	"sync"
+	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/pkg/errors"
 	"github.com/reactivex/rxgo/v2"
 	"go.uber.org/zap"
@@ -12,6 +16,9 @@ var (
 	errMissingEventBusHandlers = errors.New("cannot connect a event bus without any registered handlers")
 	errInvalidEvent            = errors.New("only eventsource.Event may be handled by the event bus")
 	errBlankAggID              = errors.New("event may not contain a blank AggregateID")
+
+	backoffInitialInterval = 100 * time.Millisecond
+	maxElapsedTime         = 500 * time.Millisecond
 )
 
 type EventHandler interface {
@@ -91,6 +98,51 @@ func (e *eventBus) getHandlersByEvent(event Event) ([]EventHandler, error) {
 	return nil, errors.Errorf("no handlers registered for event of type %T", e)
 }
 
+func tryHandleEvent(logger *zap.Logger, handler EventHandler, event Event) error {
+	backOff := backoff.NewExponentialBackOff()
+	backOff.InitialInterval = backoffInitialInterval
+	backOff.MaxElapsedTime = maxElapsedTime
+
+	operation := func() error {
+		errHandle := handler.Handle(context.Background(), event)
+		errHasValue := errHandle != nil
+		eventOutOfOrder := errHasValue && ErrHasCode(errHandle, ErrEventOutOfOrder)
+
+		if eventOutOfOrder {
+			return errHandle
+		}
+		if errHasValue {
+			msg := fmt.Sprintf("error occurred handling event %T with handler %T",
+				event,
+				handler,
+			)
+			logger.Error(msg, zap.Error(errHandle))
+			// only retry on specified errors
+			return nil
+		}
+
+		logger.Sugar().Infof(
+			"handled event %T for aggregate %v with handler %T",
+			event,
+			event.AggregateID,
+			handler,
+		)
+
+		return nil
+	}
+
+	notify := func(err error, time time.Duration) {
+		logger.Sugar().Warn(fmt.Sprintf(
+			"retrying handler %T for event type %v with duration %v",
+			handler,
+			event.EventType,
+			time,
+		))
+	}
+
+	return backoff.RetryNotify(operation, backOff, notify)
+}
+
 func handlePublishWithBus(e *eventBus) rxgo.NextFunc {
 	return func(item interface{}) {
 		var (
@@ -103,27 +155,19 @@ func handlePublishWithBus(e *eventBus) rxgo.NextFunc {
 			return
 		}
 
+		var wg sync.WaitGroup
+		errChan := make(chan error)
 		for _, v := range handlers {
-			errHandle := v.Handle(context.Background(), event)
-
-			if errHandle != nil {
-				wrappedError := errors.Wrapf(errHandle, "error occurred handling event %T for aggregate %v with handler %T",
-					event,
-					event.AggregateID,
-					v,
-				)
-				e.logger.
-					Sugar().Error(wrappedError)
-				return
-			}
-
-			e.logger.Sugar().Infof(
-				"handled event %T for aggregate %v with handler %T",
-				event,
-				event.AggregateID,
-				v,
-			)
+			wg.Add(1)
+			go func(h EventHandler) {
+				defer wg.Done()
+				errChan <- tryHandleEvent(e.logger, h, event)
+			}(v)
 		}
+		wg.Wait()
+
+		// TODO: Do something with errors
+		close(errChan)
 	}
 }
 

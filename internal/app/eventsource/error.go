@@ -18,6 +18,10 @@ const (
 	// ErrUnhandledEvent occurs when the Aggregate is unable to handle an event and returns
 	// a non-nill err
 	ErrUnhandledEvent = "UnhandledEvent"
+
+	// ErrEventOutOfOrder occurs when an event handler receives an event with a version
+	// that does not match the expected version
+	ErrEventOutOfOrder = "EventOutOfOrder"
 )
 
 // Error provides a standardized error interface for eventsource
