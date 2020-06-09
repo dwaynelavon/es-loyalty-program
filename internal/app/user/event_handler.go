@@ -43,6 +43,9 @@ func (h *userEventHandler) Handle(ctx context.Context, event eventsource.Event) 
 			CreatedAt:    *p.CreatedAt,
 			UpdatedAt:    *p.UpdatedAt,
 			ReferralCode: *p.ReferralCode,
+			AggregateBase: eventsource.AggregateBase{
+				Version: event.Version,
+			},
 		})
 	case userReferralCompletedEventType:
 		p, errPayload := deserialize(event.EventType, event.Payload)

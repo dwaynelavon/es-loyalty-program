@@ -9,6 +9,11 @@ type Aggregate interface {
 	Apply(History) error
 }
 
+// AggregateBase is the base model for aggregates
+type AggregateBase struct {
+	Version int `json:"version" firestore:"version"`
+}
+
 // Applier provides an outline for event applier behavior
 type Applier interface {
 	Apply(Aggregate) error

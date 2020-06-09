@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/dwaynelavon/es-loyalty-program/internal/app/eventsource"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -43,12 +44,18 @@ type Referral struct {
 }
 
 type UserDTO struct {
+	eventsource.AggregateBase
 	UserID       string    `json:"userId" firestore:"userId"`
 	Username     string    `json:"username" firestore:"username"`
 	Email        string    `json:"email" firestore:"email"`
 	ReferralCode string    `json:"referralCode" firestore:"referralCode"`
 	CreatedAt    time.Time `json:"createdAt" firestore:"createdAt"`
 	UpdatedAt    time.Time `json:"updatedAt" firestore:"updatedAt"`
+}
+
+// EventVersion returns the last event version processed
+func (u *UserDTO) EventVersion() int {
+	return u.Version
 }
 
 type ReadRepo interface {

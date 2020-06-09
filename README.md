@@ -1,4 +1,4 @@
-# es-loyalty-program
+# Event Sourced Loyalty Program
 
 POC for a loyalty program with event sourcing in Go
 
@@ -27,7 +27,8 @@ POC for a loyalty program with event sourcing in Go
 
 ### TODO
 
--   Enforce ordering in the read model
--   Add retries to the event bus
--   Abstract logging
--   Add config for max event retry
+-   Run projections on start up
+-   Enforce ordering in the read model.
+-   Event handlers load events into memory, apply the new events on the read model aggregate, then save changes
+-   Abstract logging into logger service
+-   Add config for backOff values

@@ -32,7 +32,7 @@ func RegisterEventHandlers(
 ) error {
 	eventBus.RegisterHandler(user.NewEventHandler(logger, readmodel.NewUserStore(firestoreClient)))
 	eventBus.RegisterHandler(user.NewSaga(logger, dispatcher, userRepo))
-	return eventBus.Connect()
+	return nil
 }
 
 func NewDispatcher(logger *zap.Logger, firestoreClient *firestore.Client) eventsource.CommandDispatcher {
