@@ -43,3 +43,13 @@ func IsStringEmpty(str *string) bool {
 	}
 	return false
 }
+
+// IsAnyStringEmpty indicates whether or not any string in a slice is empty
+func IsAnyStringEmpty(str ...*string) bool {
+	for _, v := range str {
+		if IsStringEmpty(v) {
+			return true
+		}
+	}
+	return false
+}

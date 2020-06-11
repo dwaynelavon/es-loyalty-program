@@ -52,6 +52,17 @@ func (u *User) Apply(history eventsource.History) error {
 	return nil
 }
 
+/* ---------- helpers ---------- */
+
+func assertUserAggregate(u eventsource.Aggregate) (*User, error) {
+	var user *User
+	ok := false
+	if user, ok = u.(*User); !ok {
+		return nil, errInvalidAggregateType
+	}
+	return user, nil
+}
+
 func newInvalidPayloadError(eventType string) error {
 	return errors.Errorf("invalid payload provided to %v", eventType)
 }

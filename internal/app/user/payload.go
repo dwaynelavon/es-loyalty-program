@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/dwaynelavon/es-loyalty-program/internal/app/eventsource"
 	"github.com/pkg/errors"
 )
 
@@ -21,12 +22,16 @@ type Payload struct {
 	DeletedAt         *time.Time `json:"deletedAt,omitempty"`
 }
 
-func deserialize(eventType string, payload *string) (*Payload, error) {
-	if payload == nil {
+func deserialize(event eventsource.Event) (*Payload, error) {
+	var (
+		serializedPayload = event.Payload
+		eventType         = event.EventType
+	)
+	if serializedPayload == nil {
 		return nil, nil
 	}
 	var p Payload
-	err := json.Unmarshal([]byte(*payload), &p)
+	err := json.Unmarshal([]byte(*serializedPayload), &p)
 	if err != nil {
 		return nil, errors.Wrapf(
 			err,

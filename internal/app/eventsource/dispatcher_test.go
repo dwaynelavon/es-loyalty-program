@@ -3,6 +3,7 @@ package eventsource
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,7 +12,7 @@ import (
 )
 
 /* ----- tests ----- */
-func TestConnect_BlankIDError(t *testing.T) {
+func TestDispatch_BlankIDError(t *testing.T) {
 	assert := assert.New(t)
 
 	dispatcher := NewDispatcher(zaptest.NewLogger(t))
@@ -26,11 +27,15 @@ func TestConnect_NoHandlerError(t *testing.T) {
 	assert := assert.New(t)
 
 	dispatcher := NewDispatcher(zaptest.NewLogger(t))
-	err := dispatcher.Dispatch(context.Background(), &mockCommand{
+	command := &mockCommand{
 		id: "123123",
-	})
+	}
+	err := dispatcher.Dispatch(context.Background(), command)
 
-	assert.EqualError(err, errMissingDispatchHandlerForCommand.Error())
+	assert.EqualError(
+		err,
+		fmt.Sprintf("%T: %v", command, errMissingDispatchHandlerForCommand.Error()),
+	)
 }
 
 func TestHandleDispatch(t *testing.T) {

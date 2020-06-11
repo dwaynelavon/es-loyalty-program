@@ -92,53 +92,43 @@ func getApplier(event eventsource.Event) (eventsource.Applier, bool) {
 	}
 }
 
-func (c *commandHandler) handleCompleteReferral(ctx context.Context, command *loyalty.CompleteReferral) ([]eventsource.Event, error) {
-	referredUserID := command.ReferredUserID
-	if referredUserID == "" {
-		return nil, errors.New("referred user id must be defined when completing referral")
+func (c *commandHandler) handleCompleteReferral(
+	ctx context.Context,
+	command *loyalty.CompleteReferral,
+) ([]eventsource.Event, error) {
+	aggId := command.AggregateID()
+	if eventsource.IsStringEmpty(&command.ReferredUserID) {
+		return nil, errors.New("ReferredUserID must be defined when completing referral")
 	}
-
-	user, err := c.getUserAggregate(ctx, command.AggregateID())
+	user, err := c.loadUserAggregate(ctx, aggId)
 	if err != nil {
 		return nil, err
 	}
-	if user.ReferralCode == nil {
+	if eventsource.IsStringEmpty(user.ReferralCode) ||
+		*user.ReferralCode != command.ReferredByCode {
 		return nil, errors.Errorf(
-			"user %v does not have a referral code %v",
-			command.AggregateID(),
-			user.ReferralCode,
-		)
-	}
-	if *user.ReferralCode != command.ReferredByCode {
-		return nil, errors.Errorf(
-			"aggregate: %v. referredByCode %v for command does not match user's referral code %v",
-			command.AggregateID(),
+			"referredBy code %v does not match user's referral code %v",
 			&command.ReferredByCode,
 			*user.ReferralCode,
 		)
 	}
 
-	var referral *Referral
-	for _, v := range user.Referrals {
-		if v.ReferredUserEmail == command.ReferredUserEmail {
-			r := v
-			referral = &r
-		}
-	}
-
-	var serializedPayload []byte
-	var errPayload error
-	if referral == nil {
-		serializedPayload, errPayload = newCreateReferralPayload(&command.ReferredUserEmail, user.ReferralCode, true)
-	} else {
-		serializedPayload, errPayload = newCompleteReferralPayload(referral.ID)
-	}
+	serializedPayload, errPayload := getCompleteReferralPayload(
+		user.Referrals,
+		command.ReferredUserEmail,
+		user.ReferralCode,
+	)
 	if errPayload != nil {
 		return nil, errPayload
 	}
 
 	events := []eventsource.Event{
-		*eventsource.NewEvent(command.AggregateID(), userReferralCompletedEventType, user.Version+1, serializedPayload),
+		*eventsource.NewEvent(
+			command.AggregateID(),
+			userReferralCompletedEventType,
+			user.Version+1,
+			serializedPayload,
+		),
 	}
 	errSave := c.persist(ctx, events)
 	if errSave != nil {
@@ -148,14 +138,20 @@ func (c *commandHandler) handleCompleteReferral(ctx context.Context, command *lo
 	return events, nil
 }
 
-func (c *commandHandler) handleCreateUser(ctx context.Context, command *loyalty.CreateUser) ([]eventsource.Event, error) {
-	username := command.Username
-	email := command.Email
-	if username == "" || email == "" {
+func (c *commandHandler) handleCreateUser(
+	ctx context.Context,
+	command *loyalty.CreateUser,
+) ([]eventsource.Event, error) {
+	if eventsource.IsAnyStringEmpty(&command.Username, &command.Email) {
 		return nil, errors.New("email and username must be defined when creating user")
 	}
 
-	payload, errPayload := newCreateUserPayload(command.AggregateID(), &command.Username, &command.Email, command.ReferredByCode)
+	payload, errPayload := newCreateUserPayload(
+		command.AggregateID(),
+		&command.Username,
+		&command.Email,
+		command.ReferredByCode,
+	)
 	if errPayload != nil {
 		return nil, errPayload
 	}
@@ -171,21 +167,29 @@ func (c *commandHandler) handleCreateUser(ctx context.Context, command *loyalty.
 	return events, nil
 }
 
-func (c *commandHandler) handleCreateReferral(ctx context.Context, command *loyalty.CreateReferral) ([]eventsource.Event, error) {
-	referredUserEmail := command.ReferredUserEmail
-	if referredUserEmail == "" {
-		return nil, errors.New("referredUserEmail must be defined when creating referral")
+func (c *commandHandler) handleCreateReferral(
+	ctx context.Context,
+	command *loyalty.CreateReferral,
+) ([]eventsource.Event, error) {
+	if eventsource.IsStringEmpty(&command.ReferredUserEmail) {
+		return nil, errors.New("ReferredUserEmail must be defined when creating referral")
 	}
 
-	user, err := c.getUserAggregate(ctx, command.AggregateID())
+	user, err := c.loadUserAggregate(ctx, command.AggregateID())
 	if err != nil {
 		return nil, err
 	}
 	if user.ReferralCode == nil {
-		return nil, errors.Errorf("error creating referral. user %v does not have a referral code", command.AggregateID())
+		return nil, errors.Errorf(
+			"user %v does not have a referral code",
+			command.AggregateID())
 	}
 
-	payload, errPayload := newCreateReferralPayload(&command.ReferredUserEmail, user.ReferralCode, false)
+	payload, errPayload := newCreateReferralPayload(
+		&command.ReferredUserEmail,
+		user.ReferralCode,
+		false,
+	)
 	if errPayload != nil {
 		return nil, errPayload
 	}
@@ -201,13 +205,16 @@ func (c *commandHandler) handleCreateReferral(ctx context.Context, command *loya
 	return events, nil
 }
 
-func (c *commandHandler) handleDeleteUser(ctx context.Context, command *loyalty.DeleteUser) ([]eventsource.Event, error) {
+func (c *commandHandler) handleDeleteUser(
+	ctx context.Context,
+	command *loyalty.DeleteUser,
+) ([]eventsource.Event, error) {
 	payload, errPayload := newDeleteUserPayload()
 	if errPayload != nil {
 		return nil, errPayload
 	}
 
-	user, err := c.getUserAggregate(ctx, command.AggregateID())
+	user, err := c.loadUserAggregate(ctx, command.AggregateID())
 	if err != nil {
 		return nil, err
 	}
@@ -224,27 +231,31 @@ func (c *commandHandler) handleDeleteUser(ctx context.Context, command *loyalty.
 	return events, nil
 }
 
-func (c *commandHandler) getUserAggregate(ctx context.Context, aggregateID string) (*User, error) {
+func (c *commandHandler) loadUserAggregate(
+	ctx context.Context,
+	aggregateID string,
+) (*User, error) {
 	agg, err := c.repo.Load(ctx, aggregateID)
 	if err != nil {
 		return nil, err
 	}
 
-	var user *User
-	var ok bool
-	if user, ok = agg.(*User); !ok {
-		return nil, errors.New("unable to load aggregate history from the store. invalid type returned")
+	user, errUser := assertUserAggregate(agg)
+	if errUser != nil {
+		return nil, errUser
 	}
 
-	// Check that command is valid for the current state of the aggregate
 	if user.DeletedAt != nil {
-		return nil, errors.New("error executing command: can not delete a user that's already deleted")
+		return nil, errors.New("can not delete a user that's already deleted")
 	}
 
 	return user, nil
 }
 
-func (c *commandHandler) persist(ctx context.Context, events []eventsource.Event) error {
+func (c *commandHandler) persist(
+	ctx context.Context,
+	events []eventsource.Event,
+) error {
 	start := time.Now()
 	aggregateID, version, errApply := c.repo.Apply(ctx, events...)
 	if errApply != nil {
@@ -263,14 +274,54 @@ func (c *commandHandler) persist(ctx context.Context, events []eventsource.Event
 }
 
 /* ----- helpers ----- */
-func newCreateUserPayload(aggregateID string, username, email, referredByCode *string) ([]byte, error) {
+
+// Sometimes the user can use a referral code to sign up even if the referring user
+// hasn't formally invited them. In this case we create a new referral with
+// a completed status
+func getCompleteReferralPayload(
+	referrals []Referral,
+	referredUserEmail string,
+	referralCode *string,
+) ([]byte, error) {
+	var serializedPayload []byte
+	var errPayload error
+	if referral := findReferral(referrals, referredUserEmail); referral == nil {
+		serializedPayload, errPayload = newCreateReferralPayload(
+			&referredUserEmail,
+			referralCode,
+			true,
+		)
+	} else {
+		serializedPayload, errPayload = newCompleteReferralPayload(referral.ID)
+	}
+	if errPayload != nil {
+		return nil, errPayload
+	}
+	return serializedPayload, nil
+}
+
+func findReferral(
+	referrals []Referral,
+	referredUserEmail string,
+) (referral *Referral) {
+	for _, v := range referrals {
+		if v.ReferredUserEmail == referredUserEmail {
+			r := v
+			referral = &r
+		}
+	}
+	return
+}
+
+func newCreateUserPayload(
+	aggregateID string,
+	username,
+	email,
+	referredByCode *string,
+) ([]byte, error) {
 	referralCode, errReferralCode := shortid.Generate()
 	if errReferralCode != nil {
-		return nil, errors.Wrapf(
-			errReferralCode,
-			"error generating referral code for aggregate: %v",
-			aggregateID,
-		)
+		return nil, errors.New("error generating referral code")
 	}
 	userPayload := &Payload{
 		Username:       username,

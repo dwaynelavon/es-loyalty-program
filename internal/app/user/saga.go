@@ -30,7 +30,7 @@ func NewSaga(logger *zap.Logger, dispatcher eventsource.CommandDispatcher, repo 
 func (s *saga) Handle(ctx context.Context, event eventsource.Event) error {
 	switch event.EventType {
 	case userCreatedEventType:
-		p, errPayload := deserialize(event.EventType, event.Payload)
+		p, errPayload := deserialize(event)
 		if errPayload != nil {
 			return errPayload
 		}

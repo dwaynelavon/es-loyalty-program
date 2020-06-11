@@ -2,7 +2,6 @@ package eventsource
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -12,7 +11,8 @@ import (
 )
 
 var (
-	errBlankAggID = errors.New("event may not contain a blank AggregateID")
+	errBlankEventAggregateID            = errors.New("event may not contain a blank AggregateID")
+	errNoRegisteredEventHandlersMessage = "no handlers registered for event of type %T"
 
 	backoffInitialInterval = 100 * time.Millisecond
 	maxElapsedTime         = 500 * time.Millisecond
@@ -33,41 +33,30 @@ type EventBus interface {
 
 // TODO: Add tests for event bus
 type eventBus struct {
+	sLogger  *zap.SugaredLogger
 	logger   *zap.Logger
 	handlers map[string][]EventHandler
 }
 
 func NewEventBus(logger *zap.Logger) EventBus {
 	return &eventBus{
+		sLogger:  logger.Sugar(),
 		logger:   logger,
 		handlers: make(map[string][]EventHandler),
 	}
 }
 
 func (e *eventBus) Publish(events []Event) error {
-	var err error
 	for _, event := range events {
 		if event.AggregateID == "" {
-			err = errBlankAggID
-			continue
+			return errBlankEventAggregateID
 		}
-		handlers, errHandler := e.getHandlersByEvent(event)
-		if errHandler != nil || len(handlers) == 0 {
-			return errHandler
+		err := e.handleEvent(event)
+		if err != nil {
+			return err
 		}
-
-		var wg sync.WaitGroup
-		errChan := make(chan error)
-		for _, v := range handlers {
-			wg.Add(1)
-			go tryHandleEvent(e.logger, v, event, errChan, &wg)
-		}
-		wg.Wait()
-
-		// TODO: Do something with errors
-		close(errChan)
 	}
-	return err
+	return nil
 }
 
 func (e *eventBus) RegisterHandler(handler EventHandler) {
@@ -87,29 +76,52 @@ func (e *eventBus) getHandlersByEvent(event Event) ([]EventHandler, error) {
 	if handlers, ok := e.handlers[event.EventType]; ok {
 		return handlers, nil
 	}
-	return nil, errors.Errorf("no handlers registered for event of type %T", e)
+	return nil, errors.Errorf(errNoRegisteredEventHandlersMessage, event)
 }
 
-func tryHandleEvent(logger *zap.Logger, handler EventHandler, event Event, out chan<- error, wg *sync.WaitGroup) {
-	defer wg.Done()
+func (e *eventBus) handleEvent(event Event) error {
+	handlers, errHandler := e.getHandlersByEvent(event)
+	if errHandler != nil || len(handlers) == 0 {
+		return errHandler
+	}
+
+	errChan := make(chan error)
+	defer close(errChan)
+
+	var wg sync.WaitGroup
+	for _, v := range handlers {
+		wg.Add(1)
+		go tryHandleEvent(e.sLogger, v, event, errChan, &wg)
+	}
+	wg.Wait()
+
+	if len(errChan) > 0 {
+		return errors.Errorf("event %v handled with %v errors", event.EventType, len(errChan))
+	}
+
+	return nil
+}
+
+func newBackOff() *backoff.ExponentialBackOff {
 	backOff := backoff.NewExponentialBackOff()
 	backOff.InitialInterval = backoffInitialInterval
 	backOff.MaxElapsedTime = maxElapsedTime
 
-	operation := func() error {
-		errHandle := handler.Handle(context.Background(), event)
+	return backOff
+}
 
+func newBackOffOperation(sLogger *zap.SugaredLogger, handler EventHandler, event Event) backoff.Operation {
+	return func() error {
+		errHandle := handler.Handle(context.Background(), event)
 		if errHandle != nil {
-			msg := fmt.Sprintf("error occurred handling event %T with handler %T",
+			sLogger.Errorf("error handling event %T with handler %T",
 				event,
 				handler,
 			)
-			logger.Error(msg, zap.Error(errHandle))
-			out <- errHandle
 			return errHandle
 		}
 
-		logger.Sugar().Infof(
+		sLogger.Infof(
 			"handled event %T for aggregate %v with handler %T",
 			event,
 			event.AggregateID,
@@ -118,18 +130,32 @@ func tryHandleEvent(logger *zap.Logger, handler EventHandler, event Event, out c
 
 		return nil
 	}
+}
+func tryHandleEvent(sLogger *zap.SugaredLogger, handler EventHandler, event Event, out chan<- error, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	operation := newBackOffOperation(sLogger, handler, event)
 
 	notify := func(err error, time time.Duration) {
-		logger.Sugar().Warn(fmt.Sprintf(
+		sLogger.Warnf(
 			"retrying handler %T for event type %v with duration %v",
 			handler,
 			event.EventType,
 			time,
-		))
+		)
 	}
 
-	errBackoff := backoff.RetryNotify(operation, backOff, notify)
+	errBackoff := backoff.RetryNotify(operation, newBackOff(), notify)
 	if errBackoff != nil {
 		out <- errBackoff
+		return
 	}
+
+	sLogger.Infof(
+		"handled event %T for aggregate %v with handler %T",
+		event,
+		event.AggregateID,
+		handler,
+	)
+
 }

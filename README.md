@@ -32,3 +32,4 @@ POC for a loyalty program with event sourcing in Go
 -   Event handlers load events into memory, apply the new events on the read model aggregate, then save changes
 -   Abstract logging into logger service
 -   Add config for backOff values
+-   Consolidate error strategy

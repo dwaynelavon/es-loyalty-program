@@ -9,7 +9,6 @@ import (
 
 var (
 	errMissingDispatchHandlerForCommand = errors.New("command does not have a registered command handler")
-	errMissingDispatcherHandlers        = errors.New("cannot connect a dispatcher without any registered handlers")
 	errBlankCommandAggID                = errors.New("all commands must have non-blank aggregate id")
 )
 
@@ -80,7 +79,7 @@ func (d *dispatcher) RegisterHandler(c CommandHandler) {
 func (d *dispatcher) getHandler(command Command) (CommandHandler, error) {
 	handler, ok := d.handlers[typeOf(command)]
 	if !ok {
-		return nil, errors.Wrapf(errMissingDispatchHandlerForCommand, "type: %T", command)
+		return nil, errors.Wrapf(errMissingDispatchHandlerForCommand, "%T", command)
 	}
 	return handler, nil
 }

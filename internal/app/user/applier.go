@@ -11,15 +11,18 @@ var (
 	userReferralCreatedEventType   = "UserReferralCreated"
 	userReferralCompletedEventType = "UserReferralCompletedEventType"
 
-	errInvalidAggregateType = errors.New("invalid aggregate type being applied to a User")
+	errInvalidAggregateType = errors.New("aggregate is not of type user.User")
 )
+
+// TODO: Should these apply methods be used in the event handlers also
+
+/* ---------- created ---------- */
 
 // Created event is fired when a new user is created
 type Created struct {
 	eventsource.Event
 }
 
-// TODO: Should these apply methods be used in the event handlers also
 // Apply implements the applier interface
 func (event *Created) Apply(u eventsource.Aggregate) error {
 	var user *User
@@ -28,7 +31,7 @@ func (event *Created) Apply(u eventsource.Aggregate) error {
 		return errInvalidAggregateType
 	}
 
-	p, errDeserialize := deserialize(event.EventType, event.Payload)
+	p, errDeserialize := deserialize(event.Event)
 	if errDeserialize != nil {
 		return errDeserialize
 	}
@@ -43,6 +46,8 @@ func (event *Created) Apply(u eventsource.Aggregate) error {
 	return nil
 }
 
+/* ---------- referral created ---------- */
+
 // ReferralCreated event is fired when a new user referral is created
 type ReferralCreated struct {
 	eventsource.Event
@@ -50,22 +55,21 @@ type ReferralCreated struct {
 
 // Apply implements the applier interface
 func (event *ReferralCreated) Apply(u eventsource.Aggregate) error {
-	var user *User
-	ok := false
-	if user, ok = u.(*User); !ok {
-		return errInvalidAggregateType
+	user, err := assertUserAggregate(u)
+	if err != nil {
+		return err
 	}
-	p, errDeserialize := deserialize(event.EventType, event.Payload)
+	p, errDeserialize := deserialize(event.Event)
 	if errDeserialize != nil {
 		return errDeserialize
 	}
-
 	status, errStatus := getReferralStatus(p.ReferralStatus)
 	if errStatus != nil ||
-		p.ReferredUserEmail == nil ||
-		p.ReferralCode == nil {
+		eventsource.IsStringEmpty(p.ReferredUserEmail) ||
+		eventsource.IsStringEmpty(p.ReferralCode) {
 		return newInvalidPayloadError(event.EventType)
 	}
+
 	referral := Referral{
 		ID:                *p.ReferralID,
 		ReferralCode:      *p.ReferralCode,
@@ -76,8 +80,11 @@ func (event *ReferralCreated) Apply(u eventsource.Aggregate) error {
 	user.Version = event.Version
 	user.Referrals = append(user.Referrals, referral)
 	user.ReferralCode = p.ReferralCode
+
 	return nil
 }
+
+/* ---------- referral completed ---------- */
 
 // ReferralCompleted event is fired when a new user referral is created
 type ReferralCompleted struct {
@@ -86,16 +93,15 @@ type ReferralCompleted struct {
 
 // Apply implements the applier interface
 func (event *ReferralCompleted) Apply(u eventsource.Aggregate) error {
-	var user *User
-	ok := false
-	if user, ok = u.(*User); !ok {
-		return errInvalidAggregateType
+	user, err := assertUserAggregate(u)
+	if err != nil {
+		return err
 	}
-	p, errDeserialize := deserialize(event.EventType, event.Payload)
+	p, errDeserialize := deserialize(event.Event)
 	if errDeserialize != nil {
 		return errDeserialize
 	}
-	if p.ReferralID == nil {
+	if eventsource.IsStringEmpty(p.ReferralID) {
 		return errors.New("ReferralCompleted event must have a ReferralID")
 	}
 
@@ -109,6 +115,8 @@ func (event *ReferralCompleted) Apply(u eventsource.Aggregate) error {
 	return nil
 }
 
+/* ---------- deleted ---------- */
+
 // Deleted event is fired when a user is deleted
 type Deleted struct {
 	eventsource.Event
@@ -116,12 +124,11 @@ type Deleted struct {
 
 // Apply implements the applier interface
 func (event *Deleted) Apply(u eventsource.Aggregate) error {
-	var user *User
-	ok := false
-	if user, ok = u.(*User); !ok {
-		return errInvalidAggregateType
+	user, err := assertUserAggregate(u)
+	if err != nil {
+		return err
 	}
-	p, errDeserialize := deserialize(event.EventType, event.Payload)
+	p, errDeserialize := deserialize(event.Event)
 	if errDeserialize != nil {
 		return errDeserialize
 	}
