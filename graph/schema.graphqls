@@ -25,6 +25,7 @@ type User {
     updatedAt: Time!
     username: String!
     email: String!
+    points: Int!
     referralCode: String!
     referrals: [Referral!]!
 }

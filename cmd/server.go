@@ -14,6 +14,7 @@ func main() {
 		dependency.NewUserReadModel,
 		dependency.NewDispatcher,
 		dependency.NewEventBus,
+		dependency.NewPointsMappingService,
 	)
 
 	modules := fx.Options()

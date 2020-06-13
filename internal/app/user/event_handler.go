@@ -22,12 +22,15 @@ func NewEventHandler(logger *zap.Logger, readRepo ReadRepo) eventsource.EventHan
 			userDeletedEventType,
 			userReferralCreatedEventType,
 			userReferralCompletedEventType,
+			pointsEarnedEventType,
 		},
 	}
 }
 
 func (h *userEventHandler) Handle(ctx context.Context, event eventsource.Event) error {
 	switch event.EventType {
+	case pointsEarnedEventType:
+		return handlerPointsEarned(ctx, event, h.readRepo)
 	case userCreatedEventType:
 		return handleUserCreated(ctx, event, h.readRepo)
 	case userReferralCompletedEventType:
@@ -46,6 +49,26 @@ func (h *userEventHandler) EventTypesHandled() []string {
 }
 
 /* ----- handlers ----- */
+
+func handlerPointsEarned(
+	ctx context.Context,
+	event eventsource.Event,
+	readRepo ReadRepo,
+) error {
+	p, errPayload := deserialize(event)
+	if errPayload != nil ||
+		p == nil ||
+		p.PointsEarned == nil {
+		return newInvalidPayloadError(event.EventType)
+	}
+
+	return readRepo.EarnPoints(
+		ctx,
+		event.AggregateID,
+		uint32(*p.PointsEarned),
+	)
+}
+
 func handleUserCreated(
 	ctx context.Context,
 	event eventsource.Event,
@@ -53,7 +76,7 @@ func handleUserCreated(
 ) error {
 	p, errPayload := deserialize(event)
 	if errPayload != nil ||
-		p != nil ||
+		p == nil ||
 		eventsource.IsAnyStringEmpty(
 			p.Email,
 			p.Username,
@@ -104,7 +127,7 @@ func handleUserReferralCreated(
 ) error {
 	p, errPayload := deserialize(event)
 	if errPayload != nil ||
-		p != nil ||
+		p == nil ||
 		eventsource.IsAnyStringEmpty(
 			p.ReferralID,
 			p.ReferredUserEmail,

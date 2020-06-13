@@ -69,6 +69,18 @@ func (s *userStore) UpdateReferralStatus(ctx context.Context, userID string, ref
 	return err
 }
 
+func (s *userStore) EarnPoints(ctx context.Context, userID string, points uint32) error {
+	_, err := s.
+		getUserDoc(userID).
+		Update(ctx, []firestore.Update{
+			{
+				Path: "points", Value: firestore.Increment(points),
+			},
+		})
+
+	return err
+}
+
 func (s *userStore) UserByReferralCode(ctx context.Context, referralCode string) (*user.UserDTO, error) {
 	doc, err := s.
 		getUserCollection().

@@ -69,6 +69,10 @@ func (r *queryResolver) Users(ctx context.Context) ([]user.UserDTO, error) {
 	return r.UserReadModel.Users(ctx)
 }
 
+func (r *userResolver) Points(ctx context.Context, obj *user.UserDTO) (int, error) {
+	return int(obj.Points), nil
+}
+
 func (r *userResolver) Referrals(ctx context.Context, obj *user.UserDTO) ([]user.Referral, error) {
 	return r.UserReadModel.Referrals(ctx, obj.UserID)
 }

@@ -6,15 +6,10 @@ import (
 )
 
 var (
-	userDeletedEventType           = "UserDeleted"
-	userCreatedEventType           = "UserCreated"
-	userReferralCreatedEventType   = "UserReferralCreated"
-	userReferralCompletedEventType = "UserReferralCompletedEventType"
-
 	errInvalidAggregateType = errors.New("aggregate is not of type user.User")
 )
 
-// TODO: Should these apply methods be used in the event handlers also
+// TODO: Should these apply methods be used in the event handlers also?
 
 /* ---------- created ---------- */
 
@@ -133,5 +128,31 @@ func (event *Deleted) Apply(u eventsource.Aggregate) error {
 		return errDeserialize
 	}
 	user.DeletedAt = p.DeletedAt
+	return nil
+}
+
+/* ---------- points earned ---------- */
+
+// PointsEarned event is fired when a user action results in points earned
+type PointsEarned struct {
+	eventsource.Event
+}
+
+// Apply implements the applier interface
+func (event *PointsEarned) Apply(u eventsource.Aggregate) error {
+	user, err := assertUserAggregate(u)
+	if err != nil {
+		return err
+	}
+	p, errDeserialize := deserialize(event.Event)
+	if errDeserialize != nil {
+		return errDeserialize
+	}
+	if eventsource.IsZero(p.PointsEarned) {
+		return errors.New("EarnPoints event must have a non-zero point value")
+	}
+
+	user.Points += *p.PointsEarned
+	user.Version = event.Version
 	return nil
 }

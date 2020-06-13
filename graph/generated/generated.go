@@ -68,6 +68,7 @@ type ComplexityRoot struct {
 	User struct {
 		CreatedAt    func(childComplexity int) int
 		Email        func(childComplexity int) int
+		Points       func(childComplexity int) int
 		ReferralCode func(childComplexity int) int
 		Referrals    func(childComplexity int) int
 		UpdatedAt    func(childComplexity int) int
@@ -100,6 +101,8 @@ type QueryResolver interface {
 	Users(ctx context.Context) ([]user.UserDTO, error)
 }
 type UserResolver interface {
+	Points(ctx context.Context, obj *user.UserDTO) (int, error)
+
 	Referrals(ctx context.Context, obj *user.UserDTO) ([]user.Referral, error)
 }
 
@@ -216,6 +219,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.User.Email(childComplexity), true
+
+	case "User.points":
+		if e.complexity.User.Points == nil {
+			break
+		}
+
+		return e.complexity.User.Points(childComplexity), true
 
 	case "User.referralCode":
 		if e.complexity.User.ReferralCode == nil {
@@ -385,6 +395,7 @@ type User {
     updatedAt: Time!
     username: String!
     email: String!
+    points: Int!
     referralCode: String!
     referrals: [Referral!]!
 }
@@ -1140,6 +1151,40 @@ func (ec *executionContext) _User_email(ctx context.Context, field graphql.Colle
 	res := resTmp.(string)
 	fc.Result = res
 	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _User_points(ctx context.Context, field graphql.CollectedField, obj *user.UserDTO) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "User",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.User().Points(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _User_referralCode(ctx context.Context, field graphql.CollectedField, obj *user.UserDTO) (ret graphql.Marshaler) {
@@ -2644,6 +2689,20 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&invalids, 1)
 			}
+		case "points":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._User_points(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
 		case "referralCode":
 			out.Values[i] = ec._User_referralCode(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -3003,6 +3062,20 @@ func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v interf
 
 func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.SelectionSet, v bool) graphql.Marshaler {
 	res := graphql.MarshalBoolean(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+	}
+	return res
+}
+
+func (ec *executionContext) unmarshalNInt2int(ctx context.Context, v interface{}) (int, error) {
+	return graphql.UnmarshalInt(v)
+}
+
+func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.SelectionSet, v int) graphql.Marshaler {
+	res := graphql.MarshalInt(v)
 	if res == graphql.Null {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")

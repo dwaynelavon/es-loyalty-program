@@ -13,10 +13,11 @@ import (
 )
 
 var commandsHandled []eventsource.Command = []eventsource.Command{
+	&loyalty.CompleteReferral{},
+	&loyalty.CreateReferral{},
 	&loyalty.CreateUser{},
 	&loyalty.DeleteUser{},
-	&loyalty.CreateReferral{},
-	&loyalty.CompleteReferral{},
+	&loyalty.EarnPoints{},
 }
 
 type commandHandler struct {
@@ -53,6 +54,8 @@ func (c *commandHandler) Handle(ctx context.Context, cmd eventsource.Command) er
 		events, err = c.handleCreateReferral(ctx, v)
 	case *loyalty.DeleteUser:
 		events, err = c.handleDeleteUser(ctx, v)
+	case *loyalty.EarnPoints:
+		events, err = c.handleEarnPoints(ctx, v)
 	}
 
 	if err != nil {
@@ -69,6 +72,10 @@ func (c *commandHandler) CommandsHandled() []eventsource.Command {
 
 func getApplier(event eventsource.Event) (eventsource.Applier, bool) {
 	switch event.EventType {
+	case pointsEarnedEventType:
+		return &PointsEarned{
+			Event: event,
+		}, true
 	case userCreatedEventType:
 		return &Created{
 			Event: event,
@@ -223,6 +230,35 @@ func (c *commandHandler) handleDeleteUser(
 		*eventsource.NewEvent(command.AggregateID(), userDeletedEventType, user.Version+1, payload),
 	}
 
+	errSave := c.persist(ctx, events)
+	if errSave != nil {
+		return nil, errSave
+	}
+
+	return events, nil
+}
+
+func (c *commandHandler) handleEarnPoints(
+	ctx context.Context,
+	command *loyalty.EarnPoints,
+) ([]eventsource.Event, error) {
+	if command.Points == 0 {
+		return nil, errors.New("points earned must be greater than zero")
+	}
+
+	user, err := c.loadUserAggregate(ctx, command.AggregateID())
+	if err != nil {
+		return nil, err
+	}
+
+	payload, errPayload := newEarnPointsPayload(command.Points)
+	if errPayload != nil {
+		return nil, errPayload
+	}
+
+	events := []eventsource.Event{
+		*eventsource.NewEvent(command.AggregateID(), pointsEarnedEventType, user.Version+1, payload),
+	}
 	errSave := c.persist(ctx, events)
 	if errSave != nil {
 		return nil, errSave
@@ -386,6 +422,20 @@ func newDeleteUserPayload() ([]byte, error) {
 	payload, errMarshal := serialize("DeleteUser", userPayload)
 	if errMarshal != nil {
 		return nil, fmt.Errorf("error occurred while serializing command payload: DeleteUser")
+	}
+
+	return payload, nil
+}
+
+func newEarnPointsPayload(points uint32) ([]byte, error) {
+	earnPointsPayload := &Payload{
+		PointsEarned: &points,
+		CreatedAt:    eventsource.TimeNow(),
+		UpdatedAt:    eventsource.TimeNow(),
+	}
+	payload, errMarshal := serialize("EarnPoints", earnPointsPayload)
+	if errMarshal != nil {
+		return nil, errMarshal
 	}
 
 	return payload, nil

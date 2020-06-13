@@ -4,6 +4,7 @@ import (
 	"cloud.google.com/go/firestore"
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/eventsource"
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/firebasestore/readmodel"
+	"github.com/dwaynelavon/es-loyalty-program/internal/app/loyalty"
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/user"
 	"go.uber.org/zap"
 )
@@ -29,9 +30,10 @@ func RegisterEventHandlers(
 	eventBus eventsource.EventBus,
 	dispatcher eventsource.CommandDispatcher,
 	userRepo user.ReadRepo,
+	pointsMappingService loyalty.PointsMappingService,
 ) error {
 	eventBus.RegisterHandler(user.NewEventHandler(logger, readmodel.NewUserStore(firestoreClient)))
-	eventBus.RegisterHandler(user.NewSaga(logger, dispatcher, userRepo))
+	eventBus.RegisterHandler(user.NewSaga(logger, dispatcher, userRepo, pointsMappingService))
 	return nil
 }
 

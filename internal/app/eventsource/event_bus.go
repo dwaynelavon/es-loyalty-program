@@ -16,6 +16,7 @@ var (
 
 	backoffInitialInterval = 100 * time.Millisecond
 	maxElapsedTime         = 500 * time.Millisecond
+	maxRetry               = 3
 )
 
 type EventHandler interface {
@@ -85,8 +86,9 @@ func (e *eventBus) handleEvent(event Event) error {
 		return errHandler
 	}
 
-	errChan := make(chan error)
-	defer close(errChan)
+	// This should be buffered or else the tryHandleEvent
+	// goroutines will block until the channel is read from
+	errChan := make(chan error, len(handlers))
 
 	var wg sync.WaitGroup
 	for _, v := range handlers {
@@ -94,9 +96,10 @@ func (e *eventBus) handleEvent(event Event) error {
 		go tryHandleEvent(e.sLogger, v, event, errChan, &wg)
 	}
 	wg.Wait()
+	close(errChan)
 
 	if len(errChan) > 0 {
-		return errors.Errorf("event %v handled with %v errors", event.EventType, len(errChan))
+		return errors.Errorf("%q event processed with %d errors", event.EventType, len(errChan))
 	}
 
 	return nil
@@ -110,39 +113,33 @@ func newBackOff() *backoff.ExponentialBackOff {
 	return backOff
 }
 
-func newBackOffOperation(sLogger *zap.SugaredLogger, handler EventHandler, event Event) backoff.Operation {
+func newBackOffOperation(
+	sLogger *zap.SugaredLogger, retryCh chan<- error, handler EventHandler, event Event) backoff.Operation {
 	return func() error {
 		errHandle := handler.Handle(context.Background(), event)
+		shouldContinue := len(retryCh) < maxRetry
 		if errHandle != nil {
-			sLogger.Errorf("error handling event %T with handler %T",
-				event,
-				handler,
-			)
-			return errHandle
+			if shouldContinue {
+				retryCh <- errHandle
+				return errHandle
+			}
+			return backoff.Permanent(errHandle)
 		}
-
-		sLogger.Infof(
-			"handled event %T for aggregate %v with handler %T",
-			event,
-			event.AggregateID,
-			handler,
-		)
 
 		return nil
 	}
 }
 func tryHandleEvent(sLogger *zap.SugaredLogger, handler EventHandler, event Event, out chan<- error, wg *sync.WaitGroup) {
 	defer wg.Done()
-
-	operation := newBackOffOperation(sLogger, handler, event)
+	retryCh := make(chan error, maxRetry)
+	operation := newBackOffOperation(sLogger, retryCh, handler, event)
 
 	notify := func(err error, time time.Duration) {
-		sLogger.Warnf(
-			"retrying handler %T for event type %v with duration %v",
+		wrappedError := errors.Wrapf(err,
+			"retrying handler %T (%v elapsed)",
 			handler,
-			event.EventType,
-			time,
-		)
+			time)
+		sLogger.Error(wrappedError)
 	}
 
 	errBackoff := backoff.RetryNotify(operation, newBackOff(), notify)
@@ -157,5 +154,4 @@ func tryHandleEvent(sLogger *zap.SugaredLogger, handler EventHandler, event Even
 		event.AggregateID,
 		handler,
 	)
-
 }

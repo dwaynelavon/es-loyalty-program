@@ -53,3 +53,31 @@ func IsAnyStringEmpty(str ...*string) bool {
 	}
 	return false
 }
+
+// IsZero indicates whether or not a int is empty
+func IsZero(i interface{}) bool {
+	switch v := i.(type) {
+	case *int:
+		return v == nil || *v == 0
+	case *int32:
+		return v == nil || *v == 0
+	case *int64:
+		return v == nil || *v == 0
+	case *uint32:
+		return v == nil || *v == 0
+	case *float32:
+		return v == nil || *v == 0
+	case *float64:
+		return v == nil || *v == 0
+	default:
+		return false
+	}
+
+}
+
+// switch v := i.(type) {
+// case *int, *int32, *int64, *uint32, *float32, *float64:
+// 	return v == nil || *v == 0
+// default:
+// 	return false
+// }

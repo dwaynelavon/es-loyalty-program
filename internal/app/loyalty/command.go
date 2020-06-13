@@ -28,3 +28,9 @@ type CompleteReferral struct {
 	ReferredUserID    string `json:"referredUserId"`
 	ReferredByCode    string `json:"referredByCode"`
 }
+
+// EarnPoints command
+type EarnPoints struct {
+	eventsource.CommandModel
+	Points uint32 `json:"points"`
+}

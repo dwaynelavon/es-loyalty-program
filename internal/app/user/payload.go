@@ -12,6 +12,7 @@ import (
 type Payload struct {
 	Username          *string    `json:"username,omitempty"`
 	Email             *string    `json:"email,omitempty"`
+	PointsEarned      *uint32    `json:"pointsEarned,omitempty"`
 	ReferralID        *string    `json:"referralId,omitempty"`
 	ReferralCode      *string    `json:"referralCode,omitempty"`
 	ReferredByCode    *string    `json:"referredByCode,omitempty"`
@@ -42,6 +43,7 @@ func deserialize(event eventsource.Event) (*Payload, error) {
 	return &p, err
 }
 
+// TODO: commandType shouldn't be a random string
 func serialize(commandType string, payload *Payload) ([]byte, error) {
 	if payload == nil {
 		return nil, nil

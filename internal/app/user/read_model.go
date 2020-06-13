@@ -48,6 +48,7 @@ type UserDTO struct {
 	UserID       string    `json:"userId" firestore:"userId"`
 	Username     string    `json:"username" firestore:"username"`
 	Email        string    `json:"email" firestore:"email"`
+	Points       uint32    `json:"points" firestore:"points"`
 	ReferralCode string    `json:"referralCode" firestore:"referralCode"`
 	CreatedAt    time.Time `json:"createdAt" firestore:"createdAt"`
 	UpdatedAt    time.Time `json:"updatedAt" firestore:"updatedAt"`
@@ -61,6 +62,7 @@ func (u *UserDTO) EventVersion() int {
 type ReadRepo interface {
 	CreateUser(context.Context, UserDTO) error
 	CreateReferral(ctx context.Context, userID string, referral Referral) error
+	EarnPoints(ctx context.Context, userID string, points uint32) error
 	UpdateReferralStatus(ctx context.Context, userID string, referralID string, status ReferralStatus) error
 	DeleteUser(context.Context, string) error
 	Users(context.Context) ([]UserDTO, error)

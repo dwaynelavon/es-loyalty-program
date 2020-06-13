@@ -14,6 +14,7 @@ type User struct {
 	Email    string `json:"email"`
 	Version  int    `json:"version"`
 	Username string `json:"username"`
+	Points   uint32 `json:"points"`
 	// TODO: should this be a pointer
 	ReferralCode *string `json:"referralCode"`
 	// TODO: Should we include this here? Seems like it should go only in the DTO
