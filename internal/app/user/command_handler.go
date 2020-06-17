@@ -2,7 +2,6 @@ package user
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/eventsource"
@@ -70,32 +69,45 @@ func (c *commandHandler) CommandsHandled() []eventsource.Command {
 	return commandsHandled
 }
 
-func getApplier(event eventsource.Event) (eventsource.Applier, bool) {
+func getApplier(event eventsource.Event) (eventsource.Applier, error) {
 	switch event.EventType {
 	case pointsEarnedEventType:
 		return &PointsEarned{
-			Event: event,
-		}, true
+			ApplierModel: eventsource.ApplierModel{
+				Event: event,
+			},
+		}, nil
+
 	case userCreatedEventType:
 		return &Created{
-			Event: event,
-		}, true
+			ApplierModel: eventsource.ApplierModel{
+				Event: event,
+			},
+		}, nil
 
 	case userReferralCreatedEventType:
 		return &ReferralCreated{
-			Event: event,
-		}, true
+			ApplierModel: eventsource.ApplierModel{
+				Event: event,
+			},
+		}, nil
 
 	case userDeletedEventType:
 		return &Deleted{
-			Event: event,
-		}, true
+			ApplierModel: eventsource.ApplierModel{
+				Event: event,
+			},
+		}, nil
+
 	case userReferralCompletedEventType:
 		return &ReferralCompleted{
-			Event: event,
-		}, true
+			ApplierModel: eventsource.ApplierModel{
+				Event: event,
+			},
+		}, nil
+
 	default:
-		return nil, false
+		return nil, errors.New("no registered applier for event type")
 	}
 }
 
@@ -114,29 +126,27 @@ func (c *commandHandler) handleCompleteReferral(
 	if eventsource.IsStringEmpty(user.ReferralCode) ||
 		*user.ReferralCode != command.ReferredByCode {
 		return nil, errors.Errorf(
-			"referredBy code %v does not match user's referral code %v",
-			&command.ReferredByCode,
-			*user.ReferralCode,
-		)
+			"referredBy code %v does not match user's referral code",
+			&command.ReferredByCode)
 	}
 
-	serializedPayload, errPayload := getCompleteReferralPayload(
-		user.Referrals,
-		command.ReferredUserEmail,
-		user.ReferralCode,
+	applier := NewReferralCompletedApplier(
+		command.AggregateID(),
+		userReferralCompletedEventType,
+		user.Version+1,
 	)
-	if errPayload != nil {
-		return nil, errPayload
+	errSetPayload := applier.SetSerializedPayload(
+		getCompleteReferralPayload(
+			user.Referrals,
+			command.ReferredUserEmail,
+			*user.ReferralCode,
+		),
+	)
+	if errSetPayload != nil {
+		return nil, errSetPayload
 	}
 
-	events := []eventsource.Event{
-		*eventsource.NewEvent(
-			command.AggregateID(),
-			userReferralCompletedEventType,
-			user.Version+1,
-			serializedPayload,
-		),
-	}
+	events := []eventsource.Event{applier.EventModel()}
 	errSave := c.persist(ctx, events)
 	if errSave != nil {
 		return nil, errSave
@@ -153,19 +163,25 @@ func (c *commandHandler) handleCreateUser(
 		return nil, errors.New("email and username must be defined when creating user")
 	}
 
-	payload, errPayload := newCreateUserPayload(
+	referralCode, errReferralCode := generateReferralCode()
+	if errReferralCode != nil {
+		return nil, errors.New("error generating referral code")
+	}
+	applier := NewCreatedApplier(
 		command.AggregateID(),
-		&command.Username,
-		&command.Email,
-		command.ReferredByCode,
+		userCreatedEventType, 1,
 	)
-	if errPayload != nil {
-		return nil, errPayload
+	errSetPayload := applier.SetSerializedPayload(CreatedPayload{
+		Username:       command.Username,
+		Email:          command.Email,
+		ReferredByCode: command.ReferredByCode,
+		ReferralCode:   referralCode,
+	})
+	if errSetPayload != nil {
+		return nil, errSetPayload
 	}
 
-	events := []eventsource.Event{
-		*eventsource.NewEvent(command.AggregateID(), userCreatedEventType, 1, payload),
-	}
+	events := []eventsource.Event{applier.EventModel()}
 	errSave := c.persist(ctx, events)
 	if errSave != nil {
 		return nil, errSave
@@ -192,18 +208,24 @@ func (c *commandHandler) handleCreateReferral(
 			command.AggregateID())
 	}
 
-	payload, errPayload := newCreateReferralPayload(
-		&command.ReferredUserEmail,
-		user.ReferralCode,
-		false,
-	)
-	if errPayload != nil {
-		return nil, errPayload
+	payload := ReferralCreatedPayload{
+		ReferralCode:      *user.ReferralCode,
+		ReferralID:        eventsource.NewUUID(),
+		ReferralStatus:    string(ReferralStatusCreated),
+		ReferredUserEmail: command.ReferredUserEmail,
 	}
 
-	events := []eventsource.Event{
-		*eventsource.NewEvent(command.AggregateID(), userReferralCreatedEventType, user.Version+1, payload),
+	applier := NewReferralCreatedApplier(
+		command.AggregateID(),
+		userReferralCreatedEventType,
+		user.Version+1,
+	)
+	errSetPayload := applier.SetSerializedPayload(payload)
+	if errSetPayload != nil {
+		return nil, errSetPayload
 	}
+
+	events := []eventsource.Event{applier.EventModel()}
 	errSave := c.persist(ctx, events)
 	if errSave != nil {
 		return nil, errSave
@@ -216,20 +238,24 @@ func (c *commandHandler) handleDeleteUser(
 	ctx context.Context,
 	command *loyalty.DeleteUser,
 ) ([]eventsource.Event, error) {
-	payload, errPayload := newDeleteUserPayload()
-	if errPayload != nil {
-		return nil, errPayload
-	}
-
 	user, err := c.loadUserAggregate(ctx, command.AggregateID())
 	if err != nil {
 		return nil, err
 	}
 
-	events := []eventsource.Event{
-		*eventsource.NewEvent(command.AggregateID(), userDeletedEventType, user.Version+1, payload),
+	applier := NewDeletedApplier(
+		command.AggregateID(),
+		userDeletedEventType,
+		user.Version+1,
+	)
+	errSetPayload := applier.SetSerializedPayload(DeletedPayload{
+		DeletedAt: time.Now(),
+	})
+	if errSetPayload != nil {
+		return nil, errSetPayload
 	}
 
+	events := []eventsource.Event{applier.EventModel()}
 	errSave := c.persist(ctx, events)
 	if errSave != nil {
 		return nil, errSave
@@ -251,14 +277,19 @@ func (c *commandHandler) handleEarnPoints(
 		return nil, err
 	}
 
-	payload, errPayload := newEarnPointsPayload(command.Points)
-	if errPayload != nil {
-		return nil, errPayload
+	applier := NewPointsEarnedApplier(
+		command.AggregateID(),
+		pointsEarnedEventType,
+		user.Version+1,
+	)
+	errSetPayload := applier.SetSerializedPayload(PointsEarnedPayload{
+		PointsEarned: command.Points,
+	})
+	if errSetPayload != nil {
+		return nil, errSetPayload
 	}
 
-	events := []eventsource.Event{
-		*eventsource.NewEvent(command.AggregateID(), pointsEarnedEventType, user.Version+1, payload),
-	}
+	events := []eventsource.Event{applier.EventModel()}
 	errSave := c.persist(ctx, events)
 	if errSave != nil {
 		return nil, errSave
@@ -317,23 +348,23 @@ func (c *commandHandler) persist(
 func getCompleteReferralPayload(
 	referrals []Referral,
 	referredUserEmail string,
-	referralCode *string,
-) ([]byte, error) {
-	var serializedPayload []byte
-	var errPayload error
-	if referral := findReferral(referrals, referredUserEmail); referral == nil {
-		serializedPayload, errPayload = newCreateReferralPayload(
-			&referredUserEmail,
-			referralCode,
-			true,
-		)
-	} else {
-		serializedPayload, errPayload = newCompleteReferralPayload(referral.ID)
+	referralCode string,
+) interface{} {
+	if referral := findReferral(referrals, referredUserEmail); referral != nil {
+		return ReferralCompletedPayload{
+			ReferralID: referral.ID,
+		}
 	}
-	if errPayload != nil {
-		return nil, errPayload
+	return ReferralCreatedPayload{
+		ReferredUserEmail: referredUserEmail,
+		ReferralCode:      referralCode,
+		ReferralStatus:    string(ReferralStatusCompleted),
+		ReferralID:        eventsource.NewUUID(),
 	}
-	return serializedPayload, nil
+}
+
+func generateReferralCode() (string, error) {
+	return shortid.Generate()
 }
 
 func findReferral(
@@ -347,96 +378,4 @@ func findReferral(
 		}
 	}
 	return
-}
-
-func newCreateUserPayload(
-	aggregateID string,
-	username,
-	email,
-	referredByCode *string,
-) ([]byte, error) {
-	referralCode, errReferralCode := shortid.Generate()
-	if errReferralCode != nil {
-		return nil, errors.New("error generating referral code")
-	}
-	userPayload := &Payload{
-		Username:       username,
-		Email:          email,
-		ReferralCode:   &referralCode,
-		ReferredByCode: referredByCode,
-		CreatedAt:      eventsource.TimeNow(),
-		UpdatedAt:      eventsource.TimeNow(),
-	}
-	payload, errMarshal := serialize("CreateUser", userPayload)
-	if errMarshal != nil {
-		return nil, errMarshal
-	}
-
-	return payload, nil
-}
-
-func newCompleteReferralPayload(referralID string) ([]byte, error) {
-	status := string(ReferralStatusCompleted)
-	referralPayload := &Payload{
-		ReferralID:     &referralID,
-		ReferralStatus: &status,
-		CreatedAt:      eventsource.TimeNow(),
-		UpdatedAt:      eventsource.TimeNow(),
-	}
-	payload, errMarshal := serialize("CompleteReferral", referralPayload)
-	if errMarshal != nil {
-		return nil, errMarshal
-	}
-
-	return payload, nil
-}
-
-func newCreateReferralPayload(referredUserEmail, referralCode *string, completed bool) ([]byte, error) {
-	status := string(ReferralStatusCreated)
-	if completed {
-		status = string(ReferralStatusCompleted)
-	}
-
-	referralID := eventsource.NewUUID()
-	referralPayload := &Payload{
-		ReferralID:        &referralID,
-		ReferredUserEmail: referredUserEmail,
-		ReferralCode:      referralCode,
-		ReferralStatus:    &status,
-		CreatedAt:         eventsource.TimeNow(),
-		UpdatedAt:         eventsource.TimeNow(),
-	}
-
-	payload, errMarshal := serialize("CreateReferral", referralPayload)
-	if errMarshal != nil {
-		return nil, errMarshal
-	}
-
-	return payload, nil
-}
-
-func newDeleteUserPayload() ([]byte, error) {
-	userPayload := &Payload{
-		DeletedAt: eventsource.TimeNow(),
-	}
-	payload, errMarshal := serialize("DeleteUser", userPayload)
-	if errMarshal != nil {
-		return nil, fmt.Errorf("error occurred while serializing command payload: DeleteUser")
-	}
-
-	return payload, nil
-}
-
-func newEarnPointsPayload(points uint32) ([]byte, error) {
-	earnPointsPayload := &Payload{
-		PointsEarned: &points,
-		CreatedAt:    eventsource.TimeNow(),
-		UpdatedAt:    eventsource.TimeNow(),
-	}
-	payload, errMarshal := serialize("EarnPoints", earnPointsPayload)
-	if errMarshal != nil {
-		return nil, errMarshal
-	}
-
-	return payload, nil
 }

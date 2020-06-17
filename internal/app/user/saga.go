@@ -54,7 +54,16 @@ func (s *saga) handleUserCreatedEvent(
 	ctx context.Context,
 	event eventsource.Event,
 ) error {
-	p, errPayload := deserialize(event)
+	a, err := getApplier(event)
+	if err != nil {
+		return err
+	}
+
+	applier, ok := a.(*Created)
+	if !ok {
+		return errors.New("invalid applier for event provided")
+	}
+	p, errPayload := applier.GetDeserializedPayload()
 	if errPayload != nil {
 		return errPayload
 	}
@@ -62,9 +71,7 @@ func (s *saga) handleUserCreatedEvent(
 	if p.ReferredByCode == nil {
 		return s.handleSignUpWithoutReferral(ctx, event)
 	}
-	if p.Email == nil {
-		return newInvalidPayloadError(event.EventType)
-	}
+
 	referringUser, errReferringUser := s.repo.
 		UserByReferralCode(ctx, *p.ReferredByCode)
 	if errReferringUser != nil {
@@ -80,7 +87,7 @@ func (s *saga) handleUserCreatedEvent(
 			ID: referringUser.UserID,
 		},
 		ReferredByCode:    *p.ReferredByCode,
-		ReferredUserEmail: *p.Email,
+		ReferredUserEmail: p.Email,
 		ReferredUserID:    event.AggregateID,
 	})
 	if errCompleteReferral != nil {
@@ -88,6 +95,7 @@ func (s *saga) handleUserCreatedEvent(
 	}
 
 	// Earn points for both users
+	// TODO: Maybe these should be goroutines
 	errEarnPointsReferrer := s.handleReferUser(ctx, event, referringUser.UserID)
 	if errEarnPointsReferrer != nil {
 		return errEarnPointsReferrer

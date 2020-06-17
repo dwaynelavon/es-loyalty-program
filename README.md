@@ -28,8 +28,9 @@ POC for a loyalty program with event sourcing in Go
 ### TODO
 
 -   Run projections on start up
+-   Pause and Restart projectors
 -   Enforce ordering in the read model.
 -   Event handlers load events into memory, apply the new events on the read model aggregate, then save changes
--   Abstract logging into logger service
+-   Add logging sink. i.e Rollbar or RayGun
 -   Add config for backOff values
 -   Consolidate error strategy

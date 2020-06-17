@@ -1,11 +1,18 @@
 package user
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/eventsource"
 	"github.com/pkg/errors"
+)
+
+var (
+	userDeletedEventType           = "UserDeleted"
+	userCreatedEventType           = "UserCreated"
+	userReferralCreatedEventType   = "UserReferralCreated"
+	userReferralCompletedEventType = "UserReferralCompleted"
+	pointsEarnedEventType          = "PointsEarned"
 )
 
 // User encapsulates account information about an application user
@@ -15,7 +22,7 @@ type User struct {
 	Version  int    `json:"version"`
 	Username string `json:"username"`
 	Points   uint32 `json:"points"`
-	// TODO: should this be a pointer
+	// TODO: should this be a pointer?
 	ReferralCode *string `json:"referralCode"`
 	// TODO: Should we include this here? Seems like it should go only in the DTO
 	Referrals []Referral `json:"referrals"`
@@ -41,19 +48,23 @@ func (u *User) EventVersion() int {
 // Apply takes event history and applies them to an aggregate
 func (u *User) Apply(history eventsource.History) error {
 	for _, h := range history {
-		a, ok := getApplier(h)
-		if !ok {
-			return fmt.Errorf("error occurred while trying to get applier for: %v", h.EventType)
+		a, err := getApplier(h)
+		if err != nil {
+			return err
 		}
+
 		errApply := a.Apply(u)
 		if errApply != nil {
-			return errors.Wrapf(errApply, "error occurred while trying to apply %v", h.EventType)
+			return errApply
 		}
 	}
 	return nil
 }
 
 /* ---------- helpers ---------- */
+var (
+	errInvalidAggregateType = errors.New("aggregate is not of type user.User")
+)
 
 func assertUserAggregate(u eventsource.Aggregate) (*User, error) {
 	var user *User
@@ -64,6 +75,9 @@ func assertUserAggregate(u eventsource.Aggregate) (*User, error) {
 	return user, nil
 }
 
-func newInvalidPayloadError(eventType string) error {
-	return errors.Errorf("invalid payload provided to %v", eventType)
+func newPayloadMissingFieldsError(eventType string, payload interface{}) error {
+	return errors.Wrap(
+		eventsource.NewInvalidPayloadError(eventType, payload),
+		"missing required fields",
+	)
 }

@@ -2,7 +2,10 @@ package eventsource
 
 import (
 	"context"
+	"encoding/json"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 // History represents
@@ -57,4 +60,30 @@ func NewEvent(id, eventType string, version int, payload []byte) *Event {
 		EventAt:     time.Now(),
 		Payload:     &payloadStr,
 	}
+}
+
+func (event *Event) SetPayload(payload *string) {
+	event.Payload = payload
+}
+
+func (event *Event) Serialize(payload interface{}) error {
+	serializedPayload, errMarshal := json.Marshal(payload)
+	if errMarshal != nil {
+		return errors.Errorf("unable to serialize payload for %T", event)
+	}
+
+	strPayload := string(serializedPayload)
+	event.SetPayload(&strPayload)
+	return nil
+}
+
+func (event *Event) Deserialize(destination interface{}) error {
+	if event.Payload == nil {
+		return errors.Wrap(NewInvalidPayloadError(event.EventType, destination), "nil payload")
+	}
+	err := json.Unmarshal([]byte(*event.Payload), destination)
+	if err != nil {
+		return err
+	}
+	return nil
 }

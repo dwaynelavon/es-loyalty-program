@@ -2,6 +2,8 @@ package eventsource
 
 import (
 	"fmt"
+
+	"github.com/pkg/errors"
 )
 
 const (
@@ -101,4 +103,9 @@ func IsNotFound(err error) bool {
 	}
 
 	return false
+}
+
+// TODO: follow error code format
+func NewInvalidPayloadError(eventType string, payload interface{}) error {
+	return errors.Errorf("invalid payload provided to %v: %v", eventType, payload)
 }

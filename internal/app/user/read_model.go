@@ -45,13 +45,14 @@ type Referral struct {
 
 type UserDTO struct {
 	eventsource.AggregateBase
-	UserID       string    `json:"userId" firestore:"userId"`
-	Username     string    `json:"username" firestore:"username"`
-	Email        string    `json:"email" firestore:"email"`
-	Points       uint32    `json:"points" firestore:"points"`
-	ReferralCode string    `json:"referralCode" firestore:"referralCode"`
-	CreatedAt    time.Time `json:"createdAt" firestore:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt" firestore:"updatedAt"`
+	UserID         string    `json:"userId" firestore:"userId"`
+	Username       string    `json:"username" firestore:"username"`
+	Email          string    `json:"email" firestore:"email"`
+	Points         uint32    `json:"points" firestore:"points"`
+	ReferredByCode *string   `json:"referredByCode" firestore:"referredByCode"`
+	ReferralCode   string    `json:"referralCode" firestore:"referralCode"`
+	CreatedAt      time.Time `json:"createdAt" firestore:"createdAt"`
+	UpdatedAt      time.Time `json:"updatedAt" firestore:"updatedAt"`
 }
 
 // EventVersion returns the last event version processed

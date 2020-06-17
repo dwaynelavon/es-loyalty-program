@@ -149,8 +149,8 @@ func tryHandleEvent(sLogger *zap.SugaredLogger, handler EventHandler, event Even
 	}
 
 	sLogger.Infof(
-		"handled event %T for aggregate %v with handler %T",
-		event,
+		"handled event %v for aggregate %v with handler %T",
+		event.EventType,
 		event.AggregateID,
 		handler,
 	)

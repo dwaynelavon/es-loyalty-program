@@ -30,7 +30,7 @@ func NewEventHandler(logger *zap.Logger, readRepo ReadRepo) eventsource.EventHan
 func (h *userEventHandler) Handle(ctx context.Context, event eventsource.Event) error {
 	switch event.EventType {
 	case pointsEarnedEventType:
-		return handlerPointsEarned(ctx, event, h.readRepo)
+		return handlePointsEarned(ctx, event, h.readRepo)
 	case userCreatedEventType:
 		return handleUserCreated(ctx, event, h.readRepo)
 	case userReferralCompletedEventType:
@@ -50,22 +50,26 @@ func (h *userEventHandler) EventTypesHandled() []string {
 
 /* ----- handlers ----- */
 
-func handlerPointsEarned(
+func handlePointsEarned(
 	ctx context.Context,
 	event eventsource.Event,
 	readRepo ReadRepo,
 ) error {
-	p, errPayload := deserialize(event)
-	if errPayload != nil ||
-		p == nil ||
-		p.PointsEarned == nil {
-		return newInvalidPayloadError(event.EventType)
+	pointsEarnedEvent := PointsEarned{
+		ApplierModel: eventsource.ApplierModel{
+			Event: event,
+		},
+	}
+
+	p, errPayload := pointsEarnedEvent.GetDeserializedPayload()
+	if errPayload != nil {
+		return errPayload
 	}
 
 	return readRepo.EarnPoints(
 		ctx,
 		event.AggregateID,
-		uint32(*p.PointsEarned),
+		p.PointsEarned,
 	)
 }
 
@@ -74,30 +78,32 @@ func handleUserCreated(
 	event eventsource.Event,
 	readRepo ReadRepo,
 ) error {
-	p, errPayload := deserialize(event)
-	if errPayload != nil ||
-		p == nil ||
-		eventsource.IsAnyStringEmpty(
-			p.Email,
-			p.Username,
-			p.ReferralCode,
-		) {
-		return newInvalidPayloadError(event.EventType)
+	createdEvent := Created{
+		ApplierModel: eventsource.ApplierModel{
+			Event: event,
+		},
 	}
 
+	p, errPayload := createdEvent.GetDeserializedPayload()
+	if errPayload != nil {
+		return errPayload
+	}
+
+	userDTO := UserDTO{
+		UserID:         createdEvent.AggregateID,
+		Username:       p.Username,
+		Email:          p.Email,
+		CreatedAt:      createdEvent.EventAt,
+		UpdatedAt:      createdEvent.EventAt,
+		ReferralCode:   p.ReferralCode,
+		ReferredByCode: p.ReferredByCode,
+		AggregateBase: eventsource.AggregateBase{
+			Version: event.Version,
+		},
+	}
 	return readRepo.CreateUser(
 		ctx,
-		UserDTO{
-			UserID:       event.AggregateID,
-			Username:     *p.Username,
-			Email:        *p.Email,
-			CreatedAt:    *p.CreatedAt,
-			UpdatedAt:    *p.UpdatedAt,
-			ReferralCode: *p.ReferralCode,
-			AggregateBase: eventsource.AggregateBase{
-				Version: event.Version,
-			},
-		},
+		userDTO,
 	)
 }
 
@@ -106,16 +112,21 @@ func handleUserReferralCompleted(
 	event eventsource.Event,
 	readRepo ReadRepo,
 ) error {
-	p, errPayload := deserialize(event)
-	payloadInvalid := p == nil || eventsource.IsStringEmpty(p.ReferralID)
-	if errPayload != nil || payloadInvalid {
-		return newInvalidPayloadError(event.EventType)
+	referralCompletedEvent := ReferralCompleted{
+		ApplierModel: eventsource.ApplierModel{
+			Event: event,
+		},
+	}
+
+	p, errPayload := referralCompletedEvent.GetDeserializedPayload()
+	if errPayload != nil {
+		return errPayload
 	}
 
 	return readRepo.UpdateReferralStatus(
 		ctx,
 		event.AggregateID,
-		*p.ReferralID,
+		p.ReferralID,
 		ReferralStatusCompleted,
 	)
 }
@@ -125,33 +136,32 @@ func handleUserReferralCreated(
 	event eventsource.Event,
 	readRepo ReadRepo,
 ) error {
-	p, errPayload := deserialize(event)
-	if errPayload != nil ||
-		p == nil ||
-		eventsource.IsAnyStringEmpty(
-			p.ReferralID,
-			p.ReferredUserEmail,
-			p.ReferralCode,
-			p.ReferralID,
-		) {
-		return newInvalidPayloadError(event.EventType)
+	referralCreatedEvent := ReferralCreated{
+		ApplierModel: eventsource.ApplierModel{
+			Event: event,
+		},
 	}
 
-	status, errStatus := getReferralStatus(p.ReferralStatus)
+	p, errPayload := referralCreatedEvent.GetDeserializedPayload()
+	if errPayload != nil {
+		return errPayload
+	}
+
+	status, errStatus := getReferralStatus(&p.ReferralStatus)
 	if errStatus != nil {
-		return newInvalidPayloadError(event.EventType)
+		return eventsource.NewInvalidPayloadError(event.EventType, p)
 	}
 
 	return readRepo.CreateReferral(
 		ctx,
 		event.AggregateID,
 		Referral{
-			ID:                *p.ReferralID,
-			ReferralCode:      *p.ReferralCode,
-			ReferredUserEmail: *p.ReferredUserEmail,
+			ID:                p.ReferralID,
+			ReferralCode:      p.ReferralCode,
+			ReferredUserEmail: p.ReferredUserEmail,
 			Status:            status,
-			CreatedAt:         *p.CreatedAt,
-			UpdatedAt:         *p.UpdatedAt,
+			CreatedAt:         event.EventAt,
+			UpdatedAt:         event.EventAt,
 		},
 	)
 }
