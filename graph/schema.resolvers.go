@@ -65,15 +65,15 @@ func (r *mutationResolver) UserReferralCreate(ctx context.Context, userID string
 	}, nil
 }
 
-func (r *queryResolver) Users(ctx context.Context) ([]user.UserDTO, error) {
+func (r *queryResolver) Users(ctx context.Context) ([]user.DTO, error) {
 	return r.UserReadModel.Users(ctx)
 }
 
-func (r *userResolver) Points(ctx context.Context, obj *user.UserDTO) (int, error) {
+func (r *userResolver) Points(ctx context.Context, obj *user.DTO) (int, error) {
 	return int(obj.Points), nil
 }
 
-func (r *userResolver) Referrals(ctx context.Context, obj *user.UserDTO) ([]user.Referral, error) {
+func (r *userResolver) Referrals(ctx context.Context, obj *user.DTO) ([]user.Referral, error) {
 	return r.UserReadModel.Referrals(ctx, obj.UserID)
 }
 

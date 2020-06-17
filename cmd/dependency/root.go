@@ -2,11 +2,13 @@ package dependency
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 
+	"github.com/mattn/go-colorable"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var defaultAppLevel = "development"
@@ -17,20 +19,22 @@ func NewLogger(lc fx.Lifecycle) (*zap.Logger, error) {
 		appLevel = defaultAppLevel
 	}
 
-	var logger *zap.Logger
-	var err error
-	if appLevel == "production" {
-		logger, err = zap.NewProduction()
+	var config zapcore.EncoderConfig
+	switch appLevel {
+	case "production":
+		config = zap.NewProductionEncoderConfig()
+	case "development":
+		config = zap.NewDevelopmentEncoderConfig()
+	default:
+		return nil, errors.New("incorrect log level provided")
 	}
 
-	if appLevel == "development" {
-		logger, err = zap.NewDevelopment()
-	}
-
-	if appLevel != "development" && appLevel != "production" {
-		logger = nil
-		err = fmt.Errorf("Incorrect logging level provided")
-	}
+	config.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	logger := zap.New(zapcore.NewCore(
+		zapcore.NewConsoleEncoder(config),
+		zapcore.AddSync(colorable.NewColorableStdout()),
+		zapcore.DebugLevel,
+	))
 
 	lc.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {
@@ -38,5 +42,5 @@ func NewLogger(lc fx.Lifecycle) (*zap.Logger, error) {
 		},
 	})
 
-	return logger, err
+	return logger, nil
 }

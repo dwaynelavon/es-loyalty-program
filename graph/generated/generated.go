@@ -98,12 +98,12 @@ type MutationResolver interface {
 	UserReferralCreate(ctx context.Context, userID string, referredUserEmail string) (*model.UserReferralCreatedResponse, error)
 }
 type QueryResolver interface {
-	Users(ctx context.Context) ([]user.UserDTO, error)
+	Users(ctx context.Context) ([]user.DTO, error)
 }
 type UserResolver interface {
-	Points(ctx context.Context, obj *user.UserDTO) (int, error)
+	Points(ctx context.Context, obj *user.DTO) (int, error)
 
-	Referrals(ctx context.Context, obj *user.UserDTO) ([]user.Referral, error)
+	Referrals(ctx context.Context, obj *user.DTO) ([]user.Referral, error)
 }
 
 type executableSchema struct {
@@ -708,9 +708,9 @@ func (ec *executionContext) _Query_users(ctx context.Context, field graphql.Coll
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]user.UserDTO)
+	res := resTmp.([]user.DTO)
 	fc.Result = res
-	return ec.marshalNUser2ᚕgithubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋinternalᚋappᚋuserᚐUserDTOᚄ(ctx, field.Selections, res)
+	return ec.marshalNUser2ᚕgithubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋinternalᚋappᚋuserᚐDTOᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -986,7 +986,7 @@ func (ec *executionContext) _Referral_updatedAt(ctx context.Context, field graph
 	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _User_userId(ctx context.Context, field graphql.CollectedField, obj *user.UserDTO) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_userId(ctx context.Context, field graphql.CollectedField, obj *user.DTO) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -1017,7 +1017,7 @@ func (ec *executionContext) _User_userId(ctx context.Context, field graphql.Coll
 	return ec.marshalOString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _User_createdAt(ctx context.Context, field graphql.CollectedField, obj *user.UserDTO) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_createdAt(ctx context.Context, field graphql.CollectedField, obj *user.DTO) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -1051,7 +1051,7 @@ func (ec *executionContext) _User_createdAt(ctx context.Context, field graphql.C
 	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _User_updatedAt(ctx context.Context, field graphql.CollectedField, obj *user.UserDTO) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_updatedAt(ctx context.Context, field graphql.CollectedField, obj *user.DTO) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -1085,7 +1085,7 @@ func (ec *executionContext) _User_updatedAt(ctx context.Context, field graphql.C
 	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _User_username(ctx context.Context, field graphql.CollectedField, obj *user.UserDTO) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_username(ctx context.Context, field graphql.CollectedField, obj *user.DTO) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -1119,7 +1119,7 @@ func (ec *executionContext) _User_username(ctx context.Context, field graphql.Co
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _User_email(ctx context.Context, field graphql.CollectedField, obj *user.UserDTO) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_email(ctx context.Context, field graphql.CollectedField, obj *user.DTO) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -1153,7 +1153,7 @@ func (ec *executionContext) _User_email(ctx context.Context, field graphql.Colle
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _User_points(ctx context.Context, field graphql.CollectedField, obj *user.UserDTO) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_points(ctx context.Context, field graphql.CollectedField, obj *user.DTO) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -1187,7 +1187,7 @@ func (ec *executionContext) _User_points(ctx context.Context, field graphql.Coll
 	return ec.marshalNInt2int(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _User_referralCode(ctx context.Context, field graphql.CollectedField, obj *user.UserDTO) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_referralCode(ctx context.Context, field graphql.CollectedField, obj *user.DTO) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -1221,7 +1221,7 @@ func (ec *executionContext) _User_referralCode(ctx context.Context, field graphq
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _User_referrals(ctx context.Context, field graphql.CollectedField, obj *user.UserDTO) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_referrals(ctx context.Context, field graphql.CollectedField, obj *user.DTO) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -2658,7 +2658,7 @@ func (ec *executionContext) _Referral(ctx context.Context, sel ast.SelectionSet,
 
 var userImplementors = []string{"User"}
 
-func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj *user.UserDTO) graphql.Marshaler {
+func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj *user.DTO) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, userImplementors)
 
 	out := graphql.NewFieldSet(fields)
@@ -3168,11 +3168,11 @@ func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel as
 	return res
 }
 
-func (ec *executionContext) marshalNUser2githubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋinternalᚋappᚋuserᚐUserDTO(ctx context.Context, sel ast.SelectionSet, v user.UserDTO) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2githubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋinternalᚋappᚋuserᚐDTO(ctx context.Context, sel ast.SelectionSet, v user.DTO) graphql.Marshaler {
 	return ec._User(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNUser2ᚕgithubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋinternalᚋappᚋuserᚐUserDTOᚄ(ctx context.Context, sel ast.SelectionSet, v []user.UserDTO) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2ᚕgithubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋinternalᚋappᚋuserᚐDTOᚄ(ctx context.Context, sel ast.SelectionSet, v []user.DTO) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -3196,7 +3196,7 @@ func (ec *executionContext) marshalNUser2ᚕgithubᚗcomᚋdwaynelavonᚋesᚑlo
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNUser2githubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋinternalᚋappᚋuserᚐUserDTO(ctx, sel, v[i])
+			ret[i] = ec.marshalNUser2githubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋinternalᚋappᚋuserᚐDTO(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)

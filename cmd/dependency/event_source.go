@@ -6,6 +6,8 @@ import (
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/firebasestore/readmodel"
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/loyalty"
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/user"
+	userCommand "github.com/dwaynelavon/es-loyalty-program/internal/app/user/command"
+	userEvent "github.com/dwaynelavon/es-loyalty-program/internal/app/user/event"
 	"go.uber.org/zap"
 )
 
@@ -16,11 +18,15 @@ func RegisterDispatchHandlers(
 	dispatcher eventsource.CommandDispatcher,
 ) error {
 	userRepository := newUserRepository(logger, firestoreClient)
-	dispatcher.RegisterHandler(user.NewUserCommandHandler(user.CommandHandlerParams{
-		Repo:     userRepository,
-		Logger:   logger,
-		EventBus: eventBus,
-	}))
+	dispatcher.RegisterHandler(
+		userCommand.NewUserCommandHandler(
+			userCommand.CommandHandlerParams{
+				Repo:     userRepository,
+				Logger:   logger,
+				EventBus: eventBus,
+			},
+		),
+	)
 	return nil
 }
 
@@ -32,8 +38,8 @@ func RegisterEventHandlers(
 	userRepo user.ReadRepo,
 	pointsMappingService loyalty.PointsMappingService,
 ) error {
-	eventBus.RegisterHandler(user.NewEventHandler(logger, readmodel.NewUserStore(firestoreClient)))
-	eventBus.RegisterHandler(user.NewSaga(logger, dispatcher, userRepo, pointsMappingService))
+	eventBus.RegisterHandler(userEvent.NewEventHandler(logger, readmodel.NewUserStore(firestoreClient)))
+	eventBus.RegisterHandler(userEvent.NewSaga(logger, dispatcher, userRepo, pointsMappingService))
 	return nil
 }
 

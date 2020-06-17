@@ -55,7 +55,7 @@ models:
             - github.com/99designs/gqlgen/graphql.Int64
             - github.com/99designs/gqlgen/graphql.Int32
     User:
-        model: "github.com/dwaynelavon/es-loyalty-program/internal/app/user.UserDTO"
+        model: "github.com/dwaynelavon/es-loyalty-program/internal/app/user.DTO"
     Referral:
         model: "github.com/dwaynelavon/es-loyalty-program/internal/app/user.Referral"
     ReferralStatus:

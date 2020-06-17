@@ -5,45 +5,11 @@ import (
 	"time"
 
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/eventsource"
-	"github.com/pkg/errors"
+
 	"go.uber.org/zap"
 )
 
-// ReferralStatus represents the state of a referral
-type ReferralStatus string
-
-const ReferralStatusCreated ReferralStatus = "Created"
-const ReferralStatusSent ReferralStatus = "Sent"
-const ReferralStatusCompleted ReferralStatus = "Completed"
-
-func getReferralStatus(status *string) (ReferralStatus, error) {
-	errInvalidStatus := errors.New("invalid referral status")
-	if status == nil {
-		return "", errInvalidStatus
-	}
-	switch *status {
-	case string(ReferralStatusCreated):
-		return ReferralStatusCreated, nil
-	case string(ReferralStatusSent):
-		return ReferralStatusSent, nil
-	case string(ReferralStatusCompleted):
-		return ReferralStatusCompleted, nil
-	default:
-		return "", errInvalidStatus
-	}
-}
-
-//Referral is the struct that represents a new user's referral status
-type Referral struct {
-	ID                string         `json:"id" firestore:"id"`
-	ReferralCode      string         `json:"referralCode" firestore:"referralCode"`
-	ReferredUserEmail string         `json:"referredUserEmail" firestore:"referredUserEmail"`
-	Status            ReferralStatus `json:"status" firestore:"status"`
-	CreatedAt         time.Time      `json:"createdAt" firestore:"createdAt"`
-	UpdatedAt         time.Time      `json:"updatedAt" firestore:"updatedAt"`
-}
-
-type UserDTO struct {
+type DTO struct {
 	eventsource.AggregateBase
 	UserID         string    `json:"userId" firestore:"userId"`
 	Username       string    `json:"username" firestore:"username"`
@@ -56,23 +22,12 @@ type UserDTO struct {
 }
 
 // EventVersion returns the last event version processed
-func (u *UserDTO) EventVersion() int {
+func (u *DTO) EventVersion() int {
 	return u.Version
 }
 
-type ReadRepo interface {
-	CreateUser(context.Context, UserDTO) error
-	CreateReferral(ctx context.Context, userID string, referral Referral) error
-	EarnPoints(ctx context.Context, userID string, points uint32) error
-	UpdateReferralStatus(ctx context.Context, userID string, referralID string, status ReferralStatus) error
-	DeleteUser(context.Context, string) error
-	Users(context.Context) ([]UserDTO, error)
-	Referrals(ctx context.Context, userID string) ([]Referral, error)
-	UserByReferralCode(ctx context.Context, referralCode string) (*UserDTO, error)
-}
-
 type ReadModel interface {
-	Users(context.Context) ([]UserDTO, error)
+	Users(context.Context) ([]DTO, error)
 	Referrals(ctx context.Context, userID string) ([]Referral, error)
 }
 
@@ -93,7 +48,7 @@ func NewReadModel(params ReadModelParams) ReadModel {
 	}
 }
 
-func (r *readModel) Users(ctx context.Context) ([]UserDTO, error) {
+func (r *readModel) Users(ctx context.Context) ([]DTO, error) {
 	return r.readRepo.Users(ctx)
 }
 
