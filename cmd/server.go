@@ -8,6 +8,7 @@ import (
 func main() {
 	dependencies := fx.Provide(
 		dependency.NewLogger,
+		dependency.NewConfigReader,
 		dependency.NewFirebaseApp,
 		dependency.NewFirebaseClient,
 		dependency.NewUserReadRepo,

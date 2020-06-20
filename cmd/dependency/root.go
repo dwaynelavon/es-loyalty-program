@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 
+	"github.com/dwaynelavon/es-loyalty-program/config"
 	"github.com/mattn/go-colorable"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
@@ -43,4 +44,8 @@ func NewLogger(lc fx.Lifecycle) (*zap.Logger, error) {
 	})
 
 	return logger, nil
+}
+
+func NewConfigReader() *config.Reader {
+	return config.NewReader()
 }

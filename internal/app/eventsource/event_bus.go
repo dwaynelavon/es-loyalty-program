@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/dwaynelavon/es-loyalty-program/config"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -13,10 +14,6 @@ import (
 var (
 	errBlankEventAggregateID            = errors.New("event may not contain a blank AggregateID")
 	errNoRegisteredEventHandlersMessage = "no handlers registered for event of type %T"
-
-	backoffInitialInterval = 100 * time.Millisecond
-	maxElapsedTime         = 500 * time.Millisecond
-	maxRetry               = 3
 )
 
 type EventHandler interface {
@@ -34,16 +31,26 @@ type EventBus interface {
 
 // TODO: Add tests for event bus
 type eventBus struct {
-	sLogger  *zap.SugaredLogger
-	logger   *zap.Logger
-	handlers map[string][]EventHandler
+	backoffConfig *config.EventBusBackoffConfig
+	sLogger       *zap.SugaredLogger
+	logger        *zap.Logger
+	handlers      map[string][]EventHandler
 }
 
-func NewEventBus(logger *zap.Logger) EventBus {
+func NewEventBus(logger *zap.Logger, configReader *config.Reader) EventBus {
+	backoffConfig, err := configReader.EventBusBackoffConfig()
+	if err != nil {
+		backoffConfig = &config.EventBusBackoffConfig{
+			MaxRetry:              3,
+			MaxElapsedMillis:      500,
+			InitialIntervalMillis: 300,
+		}
+	}
 	return &eventBus{
-		sLogger:  logger.Sugar(),
-		logger:   logger,
-		handlers: make(map[string][]EventHandler),
+		backoffConfig: backoffConfig,
+		sLogger:       logger.Sugar(),
+		logger:        logger,
+		handlers:      make(map[string][]EventHandler),
 	}
 }
 
@@ -113,7 +120,7 @@ func (e *eventBus) handleEvent(event Event) error {
 	var wg sync.WaitGroup
 	for _, v := range handlers {
 		wg.Add(1)
-		go tryHandleEvent(e.sLogger, v, event, errChan, &wg)
+		go e.tryHandleEvent(e.sLogger, v, event, errChan, &wg)
 	}
 	wg.Wait()
 	close(errChan)
@@ -125,15 +132,15 @@ func (e *eventBus) handleEvent(event Event) error {
 	return nil
 }
 
-func newBackOff() *backoff.ExponentialBackOff {
+func (e *eventBus) newBackOff() *backoff.ExponentialBackOff {
 	backOff := backoff.NewExponentialBackOff()
-	backOff.InitialInterval = backoffInitialInterval
-	backOff.MaxElapsedTime = maxElapsedTime
+	backOff.InitialInterval = e.backoffConfig.InitialIntervalMillis
+	backOff.MaxElapsedTime = e.backoffConfig.MaxElapsedMillis
 
 	return backOff
 }
 
-func backoffOperationWithEvent(
+func (e *eventBus) backoffOperationWithEvent(
 	sLogger *zap.SugaredLogger,
 	retryCh chan<- error,
 	handler EventHandler,
@@ -142,7 +149,7 @@ func backoffOperationWithEvent(
 	return func() error {
 		errHandle := handler.Handle(context.Background(), event)
 		if errHandle != nil {
-			if len(retryCh) < maxRetry {
+			if len(retryCh) < e.backoffConfig.MaxRetry {
 				retryCh <- errHandle
 				return errHandle
 			}
@@ -153,7 +160,7 @@ func backoffOperationWithEvent(
 	}
 }
 
-func tryHandleEvent(
+func (e *eventBus) tryHandleEvent(
 	sLogger *zap.SugaredLogger,
 	handler EventHandler,
 	event Event,
@@ -161,8 +168,8 @@ func tryHandleEvent(
 	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
-	retryCh := make(chan error, maxRetry)
-	operation := backoffOperationWithEvent(sLogger, retryCh, handler, event)
+	retryCh := make(chan error, e.backoffConfig.MaxRetry)
+	operation := e.backoffOperationWithEvent(sLogger, retryCh, handler, event)
 
 	notify := func(err error, time time.Duration) {
 		wrappedError := errors.Wrap(
@@ -172,7 +179,7 @@ func tryHandleEvent(
 		sLogger.Error(wrappedError, "duration", time, "handler", typeOf(handler))
 	}
 
-	errBackoff := backoff.RetryNotify(operation, newBackOff(), notify)
+	errBackoff := backoff.RetryNotify(operation, e.newBackOff(), notify)
 	if errBackoff != nil {
 		out <- errBackoff
 		return

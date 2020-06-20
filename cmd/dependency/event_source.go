@@ -2,6 +2,7 @@ package dependency
 
 import (
 	"cloud.google.com/go/firestore"
+	"github.com/dwaynelavon/es-loyalty-program/config"
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/eventsource"
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/firebasestore/readmodel"
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/loyalty"
@@ -47,6 +48,6 @@ func NewDispatcher(logger *zap.Logger, firestoreClient *firestore.Client) events
 	return eventsource.NewDispatcher(logger)
 }
 
-func NewEventBus(logger *zap.Logger, firestoreClient *firestore.Client) eventsource.EventBus {
-	return eventsource.NewEventBus(logger)
+func NewEventBus(logger *zap.Logger, firestoreClient *firestore.Client, configReader *config.Reader) eventsource.EventBus {
+	return eventsource.NewEventBus(logger, configReader)
 }

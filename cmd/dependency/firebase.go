@@ -12,9 +12,7 @@ import (
 	"google.golang.org/api/option"
 )
 
-func NewFirebaseApp() (*firebase.App, error) {
-	configReader := config.NewReader()
-
+func NewFirebaseApp(configReader *config.Reader) (*firebase.App, error) {
 	firebaseConfigFile, configErr := configReader.ReadFirebaseCredentialsFileLocation()
 	if configErr != nil {
 		return nil, configErr
