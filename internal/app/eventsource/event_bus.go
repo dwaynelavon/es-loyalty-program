@@ -48,13 +48,26 @@ func NewEventBus(logger *zap.Logger) EventBus {
 }
 
 func (e *eventBus) Publish(events []Event) error {
+	var op Operation = "eventsource.Publish"
+
 	for _, event := range events {
 		if event.AggregateID == "" {
-			return errBlankEventAggregateID
+			return EventErr(
+				op,
+				errBlankEventAggregateID,
+				"invalid event",
+				event,
+			)
 		}
+
 		err := e.handleEvent(event)
 		if err != nil {
-			return err
+			return EventErr(
+				op,
+				err,
+				"failed to handle event",
+				event,
+			)
 		}
 	}
 	return nil
@@ -74,10 +87,17 @@ func (e *eventBus) RegisterHandler(handler EventHandler) {
 }
 
 func (e *eventBus) getHandlersByEvent(event Event) ([]EventHandler, error) {
+	var op Operation = "eventsource.getHandlersByEvent"
+
 	if handlers, ok := e.handlers[event.EventType]; ok {
 		return handlers, nil
 	}
-	return nil, errors.Errorf(errNoRegisteredEventHandlersMessage, event)
+	return nil, EventErr(
+		op,
+		nil,
+		errNoRegisteredEventHandlersMessage,
+		event,
+	)
 }
 
 func (e *eventBus) handleEvent(event Event) error {
@@ -86,7 +106,7 @@ func (e *eventBus) handleEvent(event Event) error {
 		return errHandler
 	}
 
-	// This should be buffered or else the tryHandleEvent
+	// This needs to be buffered or else the tryHandleEvent
 	// goroutines will block until the channel is read from
 	errChan := make(chan error, len(handlers))
 
@@ -113,13 +133,16 @@ func newBackOff() *backoff.ExponentialBackOff {
 	return backOff
 }
 
-func newBackOffOperation(
-	sLogger *zap.SugaredLogger, retryCh chan<- error, handler EventHandler, event Event) backoff.Operation {
+func backoffOperationWithEvent(
+	sLogger *zap.SugaredLogger,
+	retryCh chan<- error,
+	handler EventHandler,
+	event Event,
+) backoff.Operation {
 	return func() error {
 		errHandle := handler.Handle(context.Background(), event)
-		shouldContinue := len(retryCh) < maxRetry
 		if errHandle != nil {
-			if shouldContinue {
+			if len(retryCh) < maxRetry {
 				retryCh <- errHandle
 				return errHandle
 			}
@@ -129,17 +152,24 @@ func newBackOffOperation(
 		return nil
 	}
 }
-func tryHandleEvent(sLogger *zap.SugaredLogger, handler EventHandler, event Event, out chan<- error, wg *sync.WaitGroup) {
+
+func tryHandleEvent(
+	sLogger *zap.SugaredLogger,
+	handler EventHandler,
+	event Event,
+	out chan<- error,
+	wg *sync.WaitGroup,
+) {
 	defer wg.Done()
 	retryCh := make(chan error, maxRetry)
-	operation := newBackOffOperation(sLogger, retryCh, handler, event)
+	operation := backoffOperationWithEvent(sLogger, retryCh, handler, event)
 
 	notify := func(err error, time time.Duration) {
-		wrappedError := errors.Wrapf(err,
-			"retrying handler %T (%v elapsed)",
-			handler,
-			time)
-		sLogger.Error(wrappedError)
+		wrappedError := errors.Wrap(
+			err,
+			"retrying handler",
+		)
+		sLogger.Error(wrappedError, "duration", time, "handler", typeOf(handler))
 	}
 
 	errBackoff := backoff.RetryNotify(operation, newBackOff(), notify)
@@ -149,9 +179,9 @@ func tryHandleEvent(sLogger *zap.SugaredLogger, handler EventHandler, event Even
 	}
 
 	sLogger.Infof(
-		"handled event %v for aggregate %v with handler %T",
-		event.EventType,
-		event.AggregateID,
-		handler,
+		"event handled",
+		"eventType", event.EventType,
+		"aggregateID", event.AggregateID,
+		"handler", typeOf(handler),
 	)
 }

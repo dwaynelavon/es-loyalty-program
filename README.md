@@ -33,4 +33,5 @@ POC for a loyalty program with event sourcing in Go
 -   Event handlers load events into memory, apply the new events on the read model aggregate, then save changes
 -   Add logging sink. i.e Rollbar or RayGun
 -   Add config for backOff values
--   Consolidate error strategy
+-   Consistent comments
+-   How to ensure unique values with eventual consistency

@@ -23,36 +23,43 @@ type CreatedPayload struct {
 }
 
 // Apply implements the applier interface
-func (event *Created) Apply(agg eventsource.Aggregate) error {
+func (applier *Created) Apply(agg eventsource.Aggregate) error {
 	u, err := AssertUserAggregate(agg)
 	if err != nil {
 		return err
 	}
 
-	p, errDeserialize := event.GetDeserializedPayload()
+	p, errDeserialize := applier.GetDeserializedPayload()
 	if errDeserialize != nil {
 		return errDeserialize
 	}
 
-	u.Version = event.Version
+	u.Version = applier.Version
 	u.Username = p.Username
 	u.Email = p.Email
 	u.ReferralCode = &p.ReferralCode
 	return nil
 }
 
-func (event *Created) SetSerializedPayload(payload interface{}) error {
+func (applier *Created) SetSerializedPayload(payload interface{}) error {
+	var operation eventsource.Operation = "user.Created.SetSerializedPayload"
+
 	createdPayload, ok := payload.(CreatedPayload)
 	if !ok {
-		return eventsource.NewInvalidPayloadError(event.EventType, payload)
+		return applier.PayloadErr(
+			operation,
+			payload,
+		)
 	}
 
-	return event.Serialize(createdPayload)
+	return applier.Serialize(createdPayload)
 }
 
-func (event *Created) GetDeserializedPayload() (*CreatedPayload, error) {
+func (applier *Created) GetDeserializedPayload() (*CreatedPayload, error) {
+	var operation eventsource.Operation = "user.Created.GetDeserializedPayload"
+
 	var payload CreatedPayload
-	errPayload := event.Deserialize(&payload)
+	errPayload := applier.Deserialize(&payload)
 	if errPayload != nil {
 		return nil, errPayload
 	}
@@ -62,7 +69,10 @@ func (event *Created) GetDeserializedPayload() (*CreatedPayload, error) {
 		&payload.Email,
 		&payload.ReferralCode,
 	) {
-		return nil, newPayloadMissingFieldsError(event.EventType, payload)
+		return nil, applier.PayloadErr(
+			operation,
+			payload,
+		)
 	}
 
 	return &payload, nil

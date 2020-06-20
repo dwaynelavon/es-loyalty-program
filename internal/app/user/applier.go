@@ -46,10 +46,3 @@ func GetApplier(event eventsource.Event) (eventsource.Applier, error) {
 		return nil, errors.New("no registered applier for event type")
 	}
 }
-
-func newPayloadMissingFieldsError(eventType string, payload interface{}) error {
-	return errors.Wrap(
-		eventsource.NewInvalidPayloadError(eventType, payload),
-		"missing required fields",
-	)
-}

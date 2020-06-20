@@ -67,9 +67,16 @@ func (event *Event) SetPayload(payload *string) {
 }
 
 func (event *Event) Serialize(payload interface{}) error {
+	var operation Operation = "eventsource.event.Serialize"
+
 	serializedPayload, errMarshal := json.Marshal(payload)
 	if errMarshal != nil {
-		return errors.Errorf("unable to serialize payload for %T", event)
+		return InvalidPayloadErr(
+			operation,
+			errors.Wrap(errMarshal, "unable to serialize payload"),
+			event.AggregateID,
+			event.Payload,
+		)
 	}
 
 	strPayload := string(serializedPayload)
@@ -78,12 +85,26 @@ func (event *Event) Serialize(payload interface{}) error {
 }
 
 func (event *Event) Deserialize(destination interface{}) error {
+	var operation Operation = "eventsource.event.Deserialize"
+
 	if event.Payload == nil {
-		return errors.Wrap(NewInvalidPayloadError(event.EventType, destination), "nil payload")
+		return InvalidPayloadErr(
+			operation,
+			errors.New("event missing payload"),
+			event.AggregateID,
+			event.Payload,
+		)
 	}
+
 	err := json.Unmarshal([]byte(*event.Payload), destination)
 	if err != nil {
-		return err
+		return InvalidPayloadErr(
+			operation,
+			errors.Wrap(err, "unable to deserialize payload"),
+			event.AggregateID,
+			event.Payload,
+		)
 	}
+
 	return nil
 }

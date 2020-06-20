@@ -22,13 +22,13 @@ type DeletedPayload struct {
 }
 
 // Apply implements the applier interface
-func (event *Deleted) Apply(agg eventsource.Aggregate) error {
+func (applier *Deleted) Apply(agg eventsource.Aggregate) error {
 	u, err := AssertUserAggregate(agg)
 	if err != nil {
 		return err
 	}
 
-	p, errDeserialize := event.GetDeserializedPayload()
+	p, errDeserialize := applier.GetDeserializedPayload()
 	if errDeserialize != nil {
 		return errDeserialize
 	}
@@ -37,23 +37,33 @@ func (event *Deleted) Apply(agg eventsource.Aggregate) error {
 	return nil
 }
 
-func (event *Deleted) SetSerializedPayload(payload interface{}) error {
+func (applier *Deleted) SetSerializedPayload(payload interface{}) error {
+	var operation eventsource.Operation = "user.Deleted.SetSerializedPayload"
+
 	deletedPayload, ok := payload.(DeletedPayload)
 	if !ok {
-		return eventsource.NewInvalidPayloadError(event.EventType, deletedPayload)
+		return applier.PayloadErr(
+			operation,
+			payload,
+		)
 	}
-	return event.Serialize(deletedPayload)
+	return applier.Serialize(deletedPayload)
 }
 
-func (event *Deleted) GetDeserializedPayload() (*DeletedPayload, error) {
+func (applier *Deleted) GetDeserializedPayload() (*DeletedPayload, error) {
+	var operation eventsource.Operation = "user.Deleted.GetDeserializedPayload"
+
 	var payload DeletedPayload
-	errPayload := event.Deserialize(&payload)
+	errPayload := applier.Deserialize(&payload)
 	if errPayload != nil {
 		return nil, errPayload
 	}
 
 	if payload.DeletedAt.IsZero() {
-		return nil, newPayloadMissingFieldsError(event.EventType, payload)
+		return nil, applier.PayloadErr(
+			operation,
+			payload,
+		)
 	}
 
 	return &payload, nil

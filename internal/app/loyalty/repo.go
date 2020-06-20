@@ -98,6 +98,8 @@ func (r *repository) Save(ctx context.Context, events ...eventsource.Event) erro
 // load loads the specified aggregate from the store and returns both the Aggregate and the
 // current version number of the aggregate
 func (r *repository) load(ctx context.Context, aggregateID string) (eventsource.Aggregate, error) {
+	var operation eventsource.Operation = "loyalty.repository.load"
+
 	history, err := r.store.Load(ctx, aggregateID)
 	if err != nil {
 		return nil, err
@@ -105,10 +107,19 @@ func (r *repository) load(ctx context.Context, aggregateID string) (eventsource.
 
 	entryCount := len(history)
 	if entryCount == 0 {
-		return nil, eventsource.NewError(nil, eventsource.ErrAggregateNotFound, "unable to load %v", aggregateID)
+		return nil, eventsource.AggregateNotFoundErr(
+			operation,
+			aggregateID,
+		)
 	}
 
-	r.logger.Sugar().Infof("loaded %v event(s) for aggregate id, %v", entryCount, aggregateID)
+	r.logger.
+		Sugar().
+		Infof(
+			"loaded %v event(s) for aggregate id, %v",
+			entryCount,
+			aggregateID,
+		)
 
 	agg := r.newAggregate(aggregateID)
 	errBuildUserAgg := agg.Apply(history)

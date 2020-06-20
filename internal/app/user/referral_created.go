@@ -24,13 +24,13 @@ type ReferralCreatedPayload struct {
 }
 
 // Apply implements the applier interface
-func (event *ReferralCreated) Apply(agg eventsource.Aggregate) error {
+func (applier *ReferralCreated) Apply(agg eventsource.Aggregate) error {
 	u, err := AssertUserAggregate(agg)
 	if err != nil {
 		return err
 	}
 
-	p, errDeserialize := event.GetDeserializedPayload()
+	p, errDeserialize := applier.GetDeserializedPayload()
 	if errDeserialize != nil {
 		return errDeserialize
 	}
@@ -47,25 +47,32 @@ func (event *ReferralCreated) Apply(agg eventsource.Aggregate) error {
 		Status:            status,
 	}
 
-	u.Version = event.Version
+	u.Version = applier.Version
 	u.Referrals = append(u.Referrals, referral)
 	u.ReferralCode = &p.ReferralCode
 
 	return nil
 }
 
-func (event *ReferralCreated) SetSerializedPayload(payload interface{}) error {
+func (applier *ReferralCreated) SetSerializedPayload(payload interface{}) error {
+	var operation eventsource.Operation = "user.ReferralCreated.SetSerializedPayload"
+
 	referralCreatedPayload, ok := payload.(ReferralCreatedPayload)
 	if !ok {
-		return eventsource.NewInvalidPayloadError(event.EventType, referralCreatedPayload)
+		return applier.PayloadErr(
+			operation,
+			payload,
+		)
 	}
 
-	return event.Serialize(referralCreatedPayload)
+	return applier.Serialize(referralCreatedPayload)
 }
 
-func (event *ReferralCreated) GetDeserializedPayload() (*ReferralCreatedPayload, error) {
+func (applier *ReferralCreated) GetDeserializedPayload() (*ReferralCreatedPayload, error) {
+	var operation eventsource.Operation = "user.ReferralCreated.GetDeserializedPayload"
+
 	var payload ReferralCreatedPayload
-	errPayload := event.Deserialize(&payload)
+	errPayload := applier.Deserialize(&payload)
 	if errPayload != nil {
 		return nil, errPayload
 	}
@@ -76,7 +83,10 @@ func (event *ReferralCreated) GetDeserializedPayload() (*ReferralCreatedPayload,
 		&payload.ReferralCode,
 		&payload.ReferralStatus,
 	) {
-		return nil, newPayloadMissingFieldsError(event.EventType, payload)
+		return nil, applier.PayloadErr(
+			operation,
+			payload,
+		)
 	}
 
 	return &payload, nil

@@ -137,6 +137,7 @@ func handleUserReferralCreated(
 	event eventsource.Event,
 	readRepo user.ReadRepo,
 ) error {
+	var operation eventsource.Operation = "user.handlerUserReferralCreated"
 	referralCreatedEvent := user.ReferralCreated{
 		ApplierModel: eventsource.ApplierModel{
 			Event: event,
@@ -150,7 +151,7 @@ func handleUserReferralCreated(
 
 	status, errStatus := user.GetReferralStatus(&p.ReferralStatus)
 	if errStatus != nil {
-		return eventsource.NewInvalidPayloadError(event.EventType, p)
+		return eventsource.InvalidPayloadErr(operation, errStatus, event.AggregateID, p)
 	}
 
 	return readRepo.CreateReferral(

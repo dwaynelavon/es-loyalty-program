@@ -21,13 +21,13 @@ type PointsEarnedPayload struct {
 }
 
 // Apply implements the applier interface
-func (event *PointsEarned) Apply(agg eventsource.Aggregate) error {
+func (applier *PointsEarned) Apply(agg eventsource.Aggregate) error {
 	u, err := AssertUserAggregate(agg)
 	if err != nil {
 		return err
 	}
 
-	p, errDeserialize := event.GetDeserializedPayload()
+	p, errDeserialize := applier.GetDeserializedPayload()
 	if errDeserialize != nil {
 		return errDeserialize
 	}
@@ -36,27 +36,34 @@ func (event *PointsEarned) Apply(agg eventsource.Aggregate) error {
 	}
 
 	u.Points += p.PointsEarned
-	u.Version = event.Version
+	u.Version = applier.Version
 	return nil
 }
 
-func (event *PointsEarned) SetSerializedPayload(payload interface{}) error {
+func (applier *PointsEarned) SetSerializedPayload(payload interface{}) error {
+	var operation eventsource.Operation = "user.PointsEarned.SetSerializedPayload"
+
 	pointsEarnedEvent, ok := payload.(PointsEarnedPayload)
 	if !ok {
-		return eventsource.NewInvalidPayloadError(event.EventType, pointsEarnedEvent)
+		return applier.PayloadErr(operation, payload)
 	}
-	return event.Serialize(pointsEarnedEvent)
+	return applier.Serialize(pointsEarnedEvent)
 }
 
-func (event *PointsEarned) GetDeserializedPayload() (*PointsEarnedPayload, error) {
+func (applier *PointsEarned) GetDeserializedPayload() (*PointsEarnedPayload, error) {
+	var operation eventsource.Operation = "user.PointsEarned.GetDeserializedPayload"
+
 	var payload PointsEarnedPayload
-	errPayload := event.Deserialize(&payload)
+	errPayload := applier.Deserialize(&payload)
 	if errPayload != nil {
 		return nil, errPayload
 	}
 
 	if eventsource.IsZero(payload.PointsEarned) {
-		return nil, newPayloadMissingFieldsError(event.EventType, payload)
+		return nil, applier.PayloadErr(
+			operation,
+			payload,
+		)
 	}
 
 	return &payload, nil

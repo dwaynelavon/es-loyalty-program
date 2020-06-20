@@ -6,7 +6,7 @@ type Command interface {
 	AggregateID() string
 }
 
-// CommandModel provides an embeddable struct that implements Command
+// CommandModel provides a composable struct that implements Command
 type CommandModel struct {
 	// ID contains the aggregate id
 	ID string

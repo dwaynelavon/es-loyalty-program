@@ -1,5 +1,7 @@
 package eventsource
 
+import "github.com/pkg/errors"
+
 // Aggregate consumes a command and emits Events
 type Aggregate interface {
 	// EventVersion returns the current event version
@@ -35,4 +37,13 @@ func NewApplierModel(id, eventType string, version int, payload []byte) *Applier
 
 func (a *ApplierModel) EventModel() Event {
 	return a.Event
+}
+
+func (a *ApplierModel) PayloadErr(operation Operation, payload interface{}) error {
+	return InvalidPayloadErr(
+		operation,
+		errors.New("missing required fields"),
+		a.AggregateID,
+		payload,
+	)
 }

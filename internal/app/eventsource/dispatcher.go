@@ -28,12 +28,14 @@ type CommandDispatcher interface {
 type dispatcher struct {
 	handlers map[string]CommandHandler
 	logger   *zap.Logger
+	sLogger  *zap.SugaredLogger
 }
 
 func NewDispatcher(logger *zap.Logger) *dispatcher {
 	return &dispatcher{
 		handlers: make(map[string]CommandHandler),
 		logger:   logger,
+		sLogger:  logger.Sugar(),
 	}
 }
 
@@ -44,25 +46,28 @@ type CommandDescriptor struct {
 
 /* ----- exported ----- */
 func (d *dispatcher) Dispatch(ctx context.Context, cmd Command) error {
-	if cmd.AggregateID() == "" {
-		return errBlankCommandAggID
+	var operation Operation = "eventsource.dispatcher.dispatch"
+
+	aggregateID := cmd.AggregateID()
+	if IsStringEmpty(&aggregateID) {
+		return CommandErr(operation, errBlankCommandAggID, "", cmd)
 	}
 
 	handler, errHandler := d.getHandler(cmd)
 	if errHandler != nil {
-		return errHandler
+		return CommandErr(operation, errHandler, "unable to get command handler", cmd)
 	}
-
-	d.info(
-		"handling command %T for aggregate %v",
-		cmd,
-		cmd.AggregateID(),
-	)
 
 	err := handler.Handle(ctx, cmd)
 	if err != nil {
-		return err
+		return wrapErr(err, nil, operation)
 	}
+
+	d.logger.Info("command handled",
+		zap.String("command", typeOf(cmd)),
+		zap.String("aggregateId", cmd.AggregateID()),
+	)
+
 	return nil
 }
 
@@ -74,16 +79,11 @@ func (d *dispatcher) RegisterHandler(c CommandHandler) {
 	}
 }
 
-/* ----- local ----- */
-
 func (d *dispatcher) getHandler(command Command) (CommandHandler, error) {
 	handler, ok := d.handlers[typeOf(command)]
 	if !ok {
-		return nil, errors.Wrapf(errMissingDispatchHandlerForCommand, "%T", command)
+		return nil, errMissingDispatchHandlerForCommand
 	}
-	return handler, nil
-}
 
-func (d *dispatcher) info(s string, args ...interface{}) {
-	d.logger.Sugar().Infof(s, args...)
+	return handler, nil
 }

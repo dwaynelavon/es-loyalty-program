@@ -2,10 +2,9 @@ package eventsource
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap/zaptest"
@@ -20,7 +19,8 @@ func TestDispatch_BlankIDError(t *testing.T) {
 		id: "",
 	})
 
-	assert.EqualError(err, errBlankCommandAggID.Error())
+	commandErr := err.(*commandError)
+	assert.EqualError(errors.Cause(commandErr.Err), errBlankCommandAggID.Error())
 }
 
 func TestConnect_NoHandlerError(t *testing.T) {
@@ -32,9 +32,10 @@ func TestConnect_NoHandlerError(t *testing.T) {
 	}
 	err := dispatcher.Dispatch(context.Background(), command)
 
+	commandErr := err.(*commandError)
 	assert.EqualError(
-		err,
-		fmt.Sprintf("%T: %v", command, errMissingDispatchHandlerForCommand.Error()),
+		errors.Cause(commandErr.Err),
+		errMissingDispatchHandlerForCommand.Error(),
 	)
 }
 
@@ -74,7 +75,8 @@ func TestHandleDispatch_CommandHandlerError(t *testing.T) {
 	)
 
 	// Expect mocked functions to be called
-	assert.EqualError(t, err, errCommand.Error())
+	commandErr := err.(*commandError)
+	assert.EqualError(t, errors.Cause(commandErr.Err), errCommand.Error())
 	repo.AssertExpectations(t)
 	commandHandler.AssertExpectations(t)
 }

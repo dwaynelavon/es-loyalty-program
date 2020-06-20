@@ -2,110 +2,258 @@ package eventsource
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/pkg/errors"
 )
 
-const (
-	// ErrInvalidEncoding is returned when the Serializer cannot marshal the event
-	ErrInvalidEncoding = "InvalidEncoding"
-
-	// ErrUnboundEventType when the Serializer cannot unmarshal the serialized event
-	ErrUnboundEventType = "UnboundEventType"
-
-	// ErrAggregateNotFound will be returned when attempting to Load an aggregateID
-	// that does not exist in the Store
-	ErrAggregateNotFound = "AggregateNotFound"
-
-	// ErrUnhandledEvent occurs when the Aggregate is unable to handle an event and returns
-	// a non-nill err
-	ErrUnhandledEvent = "UnhandledEvent"
-
-	// ErrEventOutOfOrder occurs when an event handler receives an event with a version
-	// that does not match the expected version
-	ErrEventOutOfOrder = "EventOutOfOrder"
-)
-
-// Error provides a standardized error interface for eventsource
+type Operation string
 type Error interface {
-	error
-
-	// Returns the original error if one was set.  Nil is returned if not set.
-	Cause() error
-
-	// Returns the short phrase depicting the classification of the error.
-	Code() string
-
-	// Returns the error details message.
-	Message() string
+	AddOperation(operation Operation)
+	FormatErrorString(error, []Operation, ...string) string
+	WrapErr(msg *string)
+	Error() string
+}
+type ErrorBase struct {
+	Err        error
+	Operations []Operation
 }
 
-type baseErr struct {
-	cause   error
-	code    string
-	message string
-}
-
-func (b *baseErr) Cause() error    { return b.cause }
-func (b *baseErr) Code() string    { return b.code }
-func (b *baseErr) Message() string { return b.message }
-func (b *baseErr) Error() string   { return fmt.Sprintf("[%v] %v - %v", b.code, b.message, b.cause) }
-func (b *baseErr) String() string  { return b.Error() }
-
-// NewError generates the common error structure
-func NewError(err error, code, format string, args ...interface{}) error {
-	return &baseErr{
-		code:    code,
-		message: fmt.Sprintf(format, args...),
-		cause:   err,
+func NewErrorBase(err error, operation Operation) ErrorBase {
+	return ErrorBase{
+		Err:        err,
+		Operations: []Operation{operation},
 	}
 }
 
-// ErrHasCode returns true if any error in the cause chain has the specified code
-func ErrHasCode(err error, code string) bool {
-	if err == nil {
-		return false
-	}
-
-	v, ok := err.(Error)
-	if !ok {
-		return false
-	}
-
-	if v.Code() == code {
-		return true
-	}
-
-	if cause := v.Cause(); cause != nil {
-		return ErrHasCode(cause, code)
-	}
-
-	return false
+func (e *ErrorBase) AddOperation(operation Operation) {
+	e.Operations = append(e.Operations, operation)
 }
 
-// IsNotFound returns true if the issue as the aggregate was not found
+func (e *ErrorBase) FormatErrorString(err error, operations []Operation, data ...string) string {
+	return formatErrorString(err, operations, data...)
+}
+
+func (e *ErrorBase) WrapErr(msg *string) {
+	if msg == nil {
+		return
+	}
+	e.Err = errors.Wrapf(e.Err, *msg)
+}
+
+func (e *ErrorBase) Error() string {
+	return formatErrorString(
+		e.Err,
+		e.Operations,
+	)
+}
+
+// TODO: Implement retryable for errors that can
+// be retried by the event bus on failure
+type Retryable interface {
+	Retryable() bool
+}
+
+func IsRetryable(err error) bool {
+	r, ok := errors.Cause(err).(Retryable)
+	return ok && r.Retryable()
+}
+
+type NotFound interface {
+	NotFound() bool
+}
+
 func IsNotFound(err error) bool {
-	for err != nil {
-		if err == nil {
-			return false
-		}
-
-		v, ok := err.(Error)
-		if !ok {
-			return false
-		}
-
-		if v.Code() == ErrAggregateNotFound {
-			return true
-		}
-
-		err = v.Cause()
-	}
-
-	return false
+	r, ok := errors.Cause(err).(NotFound)
+	return ok && r.NotFound()
 }
 
-// TODO: follow error code format
-func NewInvalidPayloadError(eventType string, payload interface{}) error {
-	return errors.Errorf("invalid payload provided to %v: %v", eventType, payload)
+/* ----- command ----- */
+type commandError struct {
+	ErrorBase
+	Command Command
+}
+
+func (c *commandError) Error() string {
+	return formatErrorString(
+		c.Err,
+		c.Operations,
+		"aggregateId", c.Command.AggregateID(),
+		"command", typeOf(c.Command),
+	)
+}
+
+func CommandErr(
+	operation Operation,
+	err error,
+	msg string,
+	command Command,
+) error {
+	wrapperErr := errors.Wrap(err, msg)
+	return &commandError{
+		ErrorBase: NewErrorBase(wrapperErr, operation),
+		Command:   command,
+	}
+}
+
+/* ----- event ----- */
+type eventError struct {
+	ErrorBase
+	Event Event
+}
+
+func (e *eventError) Error() string {
+	return formatErrorString(
+		e.Err,
+		e.Operations,
+		"aggregateId", e.Event.AggregateID,
+		"eventType", e.Event.EventType,
+	)
+}
+
+func EventErr(
+	operation Operation,
+	err error,
+	msg string,
+	event Event,
+) error {
+	wrapperErr := errors.Wrap(err, msg)
+	return &eventError{
+		ErrorBase: NewErrorBase(wrapperErr, operation),
+		Event:     event,
+	}
+}
+
+/* ----- aggregate not found ----- */
+type aggregateNotFoundError struct {
+	ErrorBase
+	AggregateID string
+}
+
+func (e *aggregateNotFoundError) NotFound() bool {
+	return true
+}
+
+func (e *aggregateNotFoundError) Error() string {
+	return formatErrorString(
+		e.Err,
+		e.Operations,
+		"aggregateId", e.AggregateID,
+	)
+}
+
+func AggregateNotFoundErr(
+	operation Operation,
+	aggregateID string,
+) error {
+	err := errors.New("aggregate not found")
+	return &aggregateNotFoundError{
+		ErrorBase:   NewErrorBase(err, operation),
+		AggregateID: aggregateID,
+	}
+}
+
+/* ----- invalid payload ----- */
+type invalidPayloadErr struct {
+	ErrorBase
+	AggregateID string
+	Payload     interface{}
+}
+
+func (e *invalidPayloadErr) Error() string {
+	return formatErrorString(
+		e.Err,
+		e.Operations,
+		"aggregateId", e.AggregateID,
+		"payload", fmt.Sprintf("%v", e.Payload),
+	)
+}
+
+func InvalidPayloadErr(
+	operation Operation,
+	err error,
+	aggregateID string,
+	payload interface{},
+) error {
+	return &invalidPayloadErr{
+		ErrorBase:   NewErrorBase(err, operation),
+		AggregateID: aggregateID,
+		Payload:     payload,
+	}
+}
+
+/* ----- helper ----- */
+func wrapErr(err error, msg *string, operation Operation) error {
+	if v, ok := err.(Error); ok {
+		v.WrapErr(msg)
+		v.AddOperation(operation)
+		return v
+	}
+
+	newErr := err
+	if msg != nil {
+		newErr = errors.Wrap(err, *msg)
+	}
+
+	newErrBase := NewErrorBase(newErr, operation)
+	return &newErrBase
+}
+
+func formatErrorString(err error, operations []Operation, data ...string) string {
+	errStr := ""
+	if err == nil && len(data) == 0 {
+		return ""
+	}
+	if err != nil {
+		errStr += fmt.Sprintf("%v", err)
+	}
+
+	operationStrings := []string{}
+	for _, v := range operations {
+		operationStrings = append(operationStrings, string(v))
+	}
+
+	dataWithOperations := append(
+		[]string{
+			"operations",
+			fmt.Sprintf("[%v]", strings.Join(operationStrings, ", ")),
+		},
+		data...,
+	)
+	errKeyValuePairs := []string{}
+	lastIndex := len(dataWithOperations) - 1
+	for i := 0; i <= lastIndex; i += 2 {
+		var (
+			keyValuePair      = ""
+			key               = dataWithOperations[i]
+			value             = "nil"
+			keyValueSeparator = ": "
+		)
+
+		// If we have another index remaining,
+		// use it as value
+		if i+1 <= lastIndex {
+			value = dataWithOperations[i+1]
+		}
+
+		// open brackets for values
+		if i == 0 {
+			if !IsStringEmpty(&errStr) {
+				// add leading space between err and data
+				keyValuePair += " "
+			}
+			keyValuePair += "{"
+		}
+
+		keyValuePair += key + keyValueSeparator + value
+
+		// close brackets for values
+		if i+1 >= lastIndex {
+			keyValuePair += "}"
+		}
+
+		errKeyValuePairs = append(errKeyValuePairs, keyValuePair)
+	}
+
+	return errStr + strings.Join(errKeyValuePairs, ", ")
 }

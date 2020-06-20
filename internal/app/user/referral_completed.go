@@ -20,13 +20,13 @@ func NewReferralCompletedApplier(id, eventType string, version int) eventsource.
 }
 
 // Apply implements the applier interface
-func (event *ReferralCompleted) Apply(agg eventsource.Aggregate) error {
+func (applier *ReferralCompleted) Apply(agg eventsource.Aggregate) error {
 	u, err := AssertUserAggregate(agg)
 	if err != nil {
 		return err
 	}
 
-	p, errDeserialize := event.GetDeserializedPayload()
+	p, errDeserialize := applier.GetDeserializedPayload()
 	if errDeserialize != nil {
 		return errDeserialize
 	}
@@ -37,27 +37,37 @@ func (event *ReferralCompleted) Apply(agg eventsource.Aggregate) error {
 		}
 	}
 
-	u.Version = event.Version
+	u.Version = applier.Version
 	return nil
 }
 
-func (event *ReferralCompleted) SetSerializedPayload(payload interface{}) error {
+func (applier *ReferralCompleted) SetSerializedPayload(payload interface{}) error {
+	var operation eventsource.Operation = "user.ReferralCompleted.SetSerializedPayload"
+
 	referralCompletedPayload, ok := payload.(ReferralCompletedPayload)
 	if !ok {
-		return eventsource.NewInvalidPayloadError(event.EventType, referralCompletedPayload)
+		return applier.PayloadErr(
+			operation,
+			payload,
+		)
 	}
-	return event.Serialize(referralCompletedPayload)
+	return applier.Serialize(referralCompletedPayload)
 }
 
-func (event *ReferralCompleted) GetDeserializedPayload() (*ReferralCompletedPayload, error) {
+func (applier *ReferralCompleted) GetDeserializedPayload() (*ReferralCompletedPayload, error) {
+	var operation eventsource.Operation = "user.ReferralCompleted.GetDeserializedPayload"
+
 	var payload ReferralCompletedPayload
-	errPayload := event.Deserialize(&payload)
+	errPayload := applier.Deserialize(&payload)
 	if errPayload != nil {
 		return nil, errPayload
 	}
 
 	if eventsource.IsAnyStringEmpty(&payload.ReferralID) {
-		return nil, newPayloadMissingFieldsError(event.EventType, payload)
+		return nil, applier.PayloadErr(
+			operation,
+			payload,
+		)
 	}
 
 	return &payload, nil
