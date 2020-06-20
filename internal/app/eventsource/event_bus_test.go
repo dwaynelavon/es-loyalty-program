@@ -2,9 +2,10 @@ package eventsource
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
+	"github.com/dwaynelavon/es-loyalty-program/config"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap/zaptest"
@@ -16,31 +17,31 @@ var event1 = "event1"
 func TestEventBus_BlankIDError(t *testing.T) {
 	assert := assert.New(t)
 
-	eventBus := NewEventBus(zaptest.NewLogger(t))
+	eventBus := NewEventBus(zaptest.NewLogger(t), config.NewReader())
 	err := eventBus.Publish([]Event{
 		*NewEvent("", event1, 1, nil),
 	})
 
-	assert.EqualError(err, errBlankEventAggregateID.Error())
+	assert.EqualError(errors.Cause(err), errBlankEventAggregateID.Error())
 }
 
 func TestEventBus_NoHandlersError(t *testing.T) {
 	assert := assert.New(t)
 
 	event := *NewEvent("abc123", event1, 1, nil)
-	eventBus := NewEventBus(zaptest.NewLogger(t))
+	eventBus := NewEventBus(zaptest.NewLogger(t), config.NewReader())
 	err := eventBus.Publish([]Event{
 		event,
 	})
 
-	assert.EqualError(err, fmt.Sprintf(errNoRegisteredEventHandlersMessage, event))
+	assert.EqualError(errors.Cause(err), errNoRegisteredEventHandlersMessage)
 }
 
 func TestEventBus_HandlePublish(t *testing.T) {
 	eventHandler := newMockEventHandler(nil)
 
 	event := *NewEvent("abc123", event1, 1, nil)
-	eventBus := NewEventBus(zaptest.NewLogger(t))
+	eventBus := NewEventBus(zaptest.NewLogger(t), config.NewReader())
 	eventBus.RegisterHandler(eventHandler)
 
 	err := eventBus.Publish([]Event{

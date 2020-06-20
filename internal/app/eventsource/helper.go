@@ -72,7 +72,11 @@ func IsZero(i interface{}) bool {
 	default:
 		return false
 	}
+}
 
+// StringToPointer takes a string and returns a pointer to the string value
+func StringToPointer(str string) *string {
+	return &str
 }
 
 // switch v := i.(type) {

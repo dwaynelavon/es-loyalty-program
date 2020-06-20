@@ -13,7 +13,7 @@ import (
 
 var (
 	errBlankEventAggregateID            = errors.New("event may not contain a blank AggregateID")
-	errNoRegisteredEventHandlersMessage = "no handlers registered for event of type %T"
+	errNoRegisteredEventHandlersMessage = "no handlers registered for event"
 )
 
 type EventHandler interface {
@@ -62,7 +62,7 @@ func (e *eventBus) Publish(events []Event) error {
 			return EventErr(
 				op,
 				errBlankEventAggregateID,
-				"invalid event",
+				StringToPointer("invalid event"),
 				event,
 			)
 		}
@@ -72,7 +72,7 @@ func (e *eventBus) Publish(events []Event) error {
 			return EventErr(
 				op,
 				err,
-				"failed to handle event",
+				StringToPointer("failed to handle event"),
 				event,
 			)
 		}
@@ -101,8 +101,8 @@ func (e *eventBus) getHandlersByEvent(event Event) ([]EventHandler, error) {
 	}
 	return nil, EventErr(
 		op,
+		errors.New(errNoRegisteredEventHandlersMessage),
 		nil,
-		errNoRegisteredEventHandlersMessage,
 		event,
 	)
 }

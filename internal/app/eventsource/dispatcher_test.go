@@ -19,8 +19,7 @@ func TestDispatch_BlankIDError(t *testing.T) {
 		id: "",
 	})
 
-	commandErr := err.(*commandError)
-	assert.EqualError(errors.Cause(commandErr.Err), errBlankCommandAggID.Error())
+	assert.EqualError(errors.Cause(err), errBlankCommandAggID.Error())
 }
 
 func TestConnect_NoHandlerError(t *testing.T) {
@@ -32,9 +31,8 @@ func TestConnect_NoHandlerError(t *testing.T) {
 	}
 	err := dispatcher.Dispatch(context.Background(), command)
 
-	commandErr := err.(*commandError)
 	assert.EqualError(
-		errors.Cause(commandErr.Err),
+		errors.Cause(err),
 		errMissingDispatchHandlerForCommand.Error(),
 	)
 }
@@ -60,6 +58,7 @@ func TestHandleDispatch(t *testing.T) {
 }
 
 func TestHandleDispatch_CommandHandlerError(t *testing.T) {
+	assert := assert.New(t)
 	repo := new(mockRepo)
 	errCommand := errors.New("new command error")
 	commandHandler := newMockCommandHandler(errCommand)
@@ -75,8 +74,7 @@ func TestHandleDispatch_CommandHandlerError(t *testing.T) {
 	)
 
 	// Expect mocked functions to be called
-	commandErr := err.(*commandError)
-	assert.EqualError(t, errors.Cause(commandErr.Err), errCommand.Error())
+	assert.EqualError(errors.Cause(err), errCommand.Error())
 	repo.AssertExpectations(t)
 	commandHandler.AssertExpectations(t)
 }

@@ -13,6 +13,7 @@ type Error interface {
 	FormatErrorString(error, []Operation, ...string) string
 	WrapErr(msg *string)
 	Error() string
+	Cause() error
 }
 type ErrorBase struct {
 	Err        error
@@ -30,7 +31,15 @@ func (e *ErrorBase) AddOperation(operation Operation) {
 	e.Operations = append(e.Operations, operation)
 }
 
-func (e *ErrorBase) FormatErrorString(err error, operations []Operation, data ...string) string {
+func (e *ErrorBase) Cause() error {
+	return errors.Cause(e.Err)
+}
+
+func (e *ErrorBase) FormatErrorString(
+	err error,
+	operations []Operation,
+	data ...string,
+) string {
 	return formatErrorString(err, operations, data...)
 }
 
@@ -38,7 +47,7 @@ func (e *ErrorBase) WrapErr(msg *string) {
 	if msg == nil {
 		return
 	}
-	e.Err = errors.Wrapf(e.Err, *msg)
+	e.Err = errors.Wrap(e.Err, *msg)
 }
 
 func (e *ErrorBase) Error() string {
@@ -86,12 +95,14 @@ func (c *commandError) Error() string {
 func CommandErr(
 	operation Operation,
 	err error,
-	msg string,
+	msg *string,
 	command Command,
 ) error {
-	wrapperErr := errors.Wrap(err, msg)
+	if msg != nil {
+		err = errors.Wrap(err, *msg)
+	}
 	return &commandError{
-		ErrorBase: NewErrorBase(wrapperErr, operation),
+		ErrorBase: NewErrorBase(err, operation),
 		Command:   command,
 	}
 }
@@ -114,12 +125,14 @@ func (e *eventError) Error() string {
 func EventErr(
 	operation Operation,
 	err error,
-	msg string,
+	msg *string,
 	event Event,
 ) error {
-	wrapperErr := errors.Wrap(err, msg)
+	if msg != nil {
+		err = errors.Wrap(err, *msg)
+	}
 	return &eventError{
-		ErrorBase: NewErrorBase(wrapperErr, operation),
+		ErrorBase: NewErrorBase(err, operation),
 		Event:     event,
 	}
 }

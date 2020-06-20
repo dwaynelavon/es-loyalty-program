@@ -50,12 +50,12 @@ func (d *dispatcher) Dispatch(ctx context.Context, cmd Command) error {
 
 	aggregateID := cmd.AggregateID()
 	if IsStringEmpty(&aggregateID) {
-		return CommandErr(operation, errBlankCommandAggID, "", cmd)
+		return CommandErr(operation, errBlankCommandAggID, nil, cmd)
 	}
 
 	handler, errHandler := d.getHandler(cmd)
 	if errHandler != nil {
-		return CommandErr(operation, errHandler, "unable to get command handler", cmd)
+		return CommandErr(operation, errHandler, nil, cmd)
 	}
 
 	err := handler.Handle(ctx, cmd)
