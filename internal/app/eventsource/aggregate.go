@@ -29,7 +29,11 @@ type ApplierModel struct {
 }
 
 // NewApplierModel creates a new applier model
-func NewApplierModel(id, eventType string, version int, payload []byte) *ApplierModel {
+func NewApplierModel(
+	id, eventType string,
+	version int,
+	payload []byte,
+) *ApplierModel {
 	return &ApplierModel{
 		Event: *NewEvent(id, eventType, version, payload),
 	}
@@ -39,7 +43,10 @@ func (a *ApplierModel) EventModel() Event {
 	return a.Event
 }
 
-func (a *ApplierModel) PayloadErr(operation Operation, payload interface{}) error {
+func (a *ApplierModel) PayloadErr(
+	operation Operation,
+	payload interface{},
+) error {
 	return InvalidPayloadErr(
 		operation,
 		errors.New("missing required fields"),

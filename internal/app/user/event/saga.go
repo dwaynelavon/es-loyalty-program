@@ -39,6 +39,10 @@ func (s *saga) EventTypesHandled() []string {
 	return s.eventTypesHandled
 }
 
+func (s *saga) Sync(ctx context.Context, aggregateID string) error {
+	panic("sync for user event saga not implemented")
+}
+
 func (s *saga) Handle(
 	ctx context.Context,
 	event eventsource.Event,

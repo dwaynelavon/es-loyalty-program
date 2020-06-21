@@ -38,7 +38,7 @@ func TestEventBus_NoHandlersError(t *testing.T) {
 }
 
 func TestEventBus_HandlePublish(t *testing.T) {
-	eventHandler := newMockEventHandler(nil)
+	eventHandler := newMockEventHandler(nil, nil)
 
 	event := *NewEvent("abc123", event1, 1, nil)
 	eventBus := NewEventBus(zaptest.NewLogger(t), config.NewReader())
@@ -63,6 +63,11 @@ func (m *mockEventHandler) Handle(ctx context.Context, event Event) error {
 	return args.Error(0)
 }
 
+func (m *mockEventHandler) Sync(ctx context.Context, aggregateID string) error {
+	args := m.Called()
+	return args.Error(0)
+}
+
 func (m *mockEventHandler) EventTypesHandled() []string {
 	return []string{
 		event1,
@@ -70,8 +75,14 @@ func (m *mockEventHandler) EventTypesHandled() []string {
 }
 
 /* ----- helpers ----- */
-func newMockEventHandler(returnedError error) *mockEventHandler {
+func newMockEventHandler(
+	returnedHandleError error,
+	returnedSyncError error,
+) *mockEventHandler {
 	eventHandler := new(mockEventHandler)
-	eventHandler.On("Handle", mock.Anything, mock.Anything).Return(returnedError)
+	eventHandler.
+		On("Handle", mock.Anything, mock.Anything).
+		Return(returnedHandleError)
+
 	return eventHandler
 }

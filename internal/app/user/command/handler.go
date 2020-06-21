@@ -41,7 +41,10 @@ func NewUserCommandHandler(params CommandHandlerParams) eventsource.CommandHandl
 }
 
 // Handle implements the Aggregate interface. Unhandled events fall through safely
-func (c *commandHandler) Handle(ctx context.Context, cmd eventsource.Command) error {
+func (c *commandHandler) Handle(
+	ctx context.Context,
+	cmd eventsource.Command,
+) error {
 	var err error
 	events := []eventsource.Event{}
 
@@ -76,7 +79,9 @@ func (c *commandHandler) handleCompleteReferral(
 ) ([]eventsource.Event, error) {
 	aggId := command.AggregateID()
 	if eventsource.IsStringEmpty(&command.ReferredUserID) {
-		return nil, errors.New("ReferredUserID must be defined when completing referral")
+		return nil, errors.New(
+			"ReferredUserID must be defined when completing referral",
+		)
 	}
 	u, err := c.loadUserAggregate(ctx, aggId)
 	if err != nil {
@@ -86,7 +91,8 @@ func (c *commandHandler) handleCompleteReferral(
 		*u.ReferralCode != command.ReferredByCode {
 		return nil, errors.Errorf(
 			"referredBy code %v does not match user's referral code",
-			&command.ReferredByCode)
+			&command.ReferredByCode,
+		)
 	}
 
 	a := user.NewReferralCompletedApplier(
@@ -119,7 +125,9 @@ func (c *commandHandler) handleCreateUser(
 	command *loyalty.CreateUser,
 ) ([]eventsource.Event, error) {
 	if eventsource.IsAnyStringEmpty(&command.Username, &command.Email) {
-		return nil, errors.New("email and username must be defined when creating user")
+		return nil, errors.New(
+			"email and username must be defined when creating user",
+		)
 	}
 
 	referralCode, errReferralCode := generateReferralCode()
@@ -155,7 +163,9 @@ func (c *commandHandler) handleCreateReferral(
 	command *loyalty.CreateReferral,
 ) ([]eventsource.Event, error) {
 	if eventsource.IsStringEmpty(&command.ReferredUserEmail) {
-		return nil, errors.New("ReferredUserEmail must be defined when creating referral")
+		return nil, errors.New(
+			"ReferredUserEmail must be defined when creating referral",
+		)
 	}
 
 	agg, err := c.loadUserAggregate(ctx, command.AggregateID())
@@ -262,7 +272,7 @@ func (c *commandHandler) loadUserAggregate(
 	ctx context.Context,
 	aggregateID string,
 ) (*user.User, error) {
-	agg, err := c.repo.Load(ctx, aggregateID)
+	agg, err := c.repo.Load(ctx, aggregateID, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -289,12 +299,12 @@ func (c *commandHandler) persist(
 		return errApply
 	}
 
-	c.logger.Sugar().Infof(
-		"saved %v event(s) for aggregate %v. current version is: %v (%v elapsed)",
-		len(events),
-		*aggregateID,
-		*version,
-		time.Since(start),
+	c.logger.Info(
+		"saved event(s)",
+		zap.Int("count", len(events)),
+		zap.String("aggregateId", *aggregateID),
+		zap.Int("currentVersion", *version),
+		zap.Duration("timeElapsed", time.Since(start)),
 	)
 
 	return nil
@@ -302,9 +312,11 @@ func (c *commandHandler) persist(
 
 /* ----- helpers ----- */
 
-// Sometimes the user can use a referral code to sign up even if the referring user
-// hasn't formally invited them. In this case we create a new referral with
-// a completed status
+/*
+Sometimes the user can use a referral code to sign up even if the referring user
+hasn't formally invited them. In this case we create a new referral with
+a completed status
+*/
 func getCompleteReferralPayload(
 	referrals []user.Referral,
 	referredUserEmail string,

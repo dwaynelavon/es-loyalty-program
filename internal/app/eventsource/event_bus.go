@@ -22,6 +22,9 @@ type EventHandler interface {
 
 	// EventTypesHandled returns a list of events the EventHandler accepts
 	EventTypesHandled() []string
+
+	// Sync ensures the read model is correctly hydrated from the event store
+	Sync(ctx context.Context, aggregateID string) error
 }
 
 type EventBus interface {
@@ -120,7 +123,7 @@ func (e *eventBus) handleEvent(event Event) error {
 	var wg sync.WaitGroup
 	for _, v := range handlers {
 		wg.Add(1)
-		go e.tryHandleEvent(e.sLogger, v, event, errChan, &wg)
+		go e.tryHandleEvent(v, event, errChan, &wg)
 	}
 	wg.Wait()
 	close(errChan)
@@ -141,7 +144,6 @@ func (e *eventBus) newBackOff() *backoff.ExponentialBackOff {
 }
 
 func (e *eventBus) backoffOperationWithEvent(
-	sLogger *zap.SugaredLogger,
 	retryCh chan<- error,
 	handler EventHandler,
 	event Event,
@@ -161,7 +163,6 @@ func (e *eventBus) backoffOperationWithEvent(
 }
 
 func (e *eventBus) tryHandleEvent(
-	sLogger *zap.SugaredLogger,
 	handler EventHandler,
 	event Event,
 	out chan<- error,
@@ -169,26 +170,35 @@ func (e *eventBus) tryHandleEvent(
 ) {
 	defer wg.Done()
 	retryCh := make(chan error, e.backoffConfig.MaxRetry)
-	operation := e.backoffOperationWithEvent(sLogger, retryCh, handler, event)
+	operation := e.backoffOperationWithEvent(retryCh, handler, event)
 
 	notify := func(err error, time time.Duration) {
 		wrappedError := errors.Wrap(
 			err,
 			"retrying handler",
 		)
-		sLogger.Error(wrappedError, "duration", time, "handler", typeOf(handler))
+		e.sLogger.Error(
+			wrappedError,
+			zap.Duration("duration", time),
+			zap.Reflect("handler", handler),
+		)
 	}
 
 	errBackoff := backoff.RetryNotify(operation, e.newBackOff(), notify)
 	if errBackoff != nil {
+		e.logger.Error(
+			errBackoff.Error(),
+			zap.Reflect("handler", handler),
+			zap.String("eventType", event.EventType),
+		)
 		out <- errBackoff
 		return
 	}
 
-	sLogger.Infof(
+	e.logger.Info(
 		"event handled",
-		"eventType", event.EventType,
-		"aggregateID", event.AggregateID,
-		"handler", typeOf(handler),
+		zap.String("eventType", event.EventType),
+		zap.String("aggregateID", event.AggregateID),
+		zap.String("handler", typeOf(handler)),
 	)
 }

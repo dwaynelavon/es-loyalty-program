@@ -25,13 +25,17 @@ func newUserReadRepo(firestoreClient *firestore.Client) user.ReadRepo {
 	return readmodel.NewUserStore(firestoreClient)
 }
 
-func newUserRepository(logger *zap.Logger, firestoreClient *firestore.Client) eventsource.EventRepo {
+func newUserRepository(logger *zap.Logger, eventStore user.EventStore) eventsource.EventRepo {
 	params := loyalty.RepositoryParams{
-		Store:  firebaseEventStore.NewStore(firestoreClient),
+		Store:  eventStore,
 		Logger: logger,
 		NewAggregate: func(id string) eventsource.Aggregate {
 			return user.NewUser(id)
 		},
 	}
 	return loyalty.NewRepository(params)
+}
+
+func NewUserEventStore(firestoreClient *firestore.Client) user.EventStore {
+	return firebaseEventStore.NewStore(firestoreClient)
 }

@@ -1,12 +1,15 @@
 package dependency
 
 import (
+	"context"
 	"errors"
 	"log"
+	"net"
 	"net/http"
 	"os"
 
 	"cloud.google.com/go/firestore"
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/dwaynelavon/es-loyalty-program/config"
@@ -14,6 +17,7 @@ import (
 	"github.com/dwaynelavon/es-loyalty-program/graph/generated"
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/eventsource"
 	"github.com/dwaynelavon/es-loyalty-program/internal/app/user"
+	"github.com/vektah/gqlparser/v2/gqlerror"
 	"go.uber.org/zap"
 )
 
@@ -40,6 +44,7 @@ func RegisterRoutes(
 	}
 	schema := generated.NewExecutableSchema(generatedConfig)
 	srv := handler.NewDefaultServer(schema)
+	srv.SetErrorPresenter(errorPresenterWithLogger(logger))
 
 	// Handlers
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
@@ -55,4 +60,19 @@ func LoadEnv() error {
 		return errors.New("unable to load environment variables")
 	}
 	return nil
+}
+
+func errorPresenterWithLogger(
+	logger *zap.Logger,
+) func(ctx context.Context, err error) *gqlerror.Error {
+	return func(ctx context.Context, err error) *gqlerror.Error {
+		logger.Error(err.Error())
+		if err, ok := err.(net.Error); ok && err.Timeout() {
+			return gqlerror.ErrorPathf(
+				graphql.GetFieldContext(ctx).Path(),
+				"Request timeout. Check network connection")
+		}
+
+		return graphql.DefaultErrorPresenter(ctx, err)
+	}
 }

@@ -17,7 +17,7 @@ type EventRepo interface {
 	Save(ctx context.Context, events ...Event) error
 
 	// Load retrieves the specified aggregate from the underlying store
-	Load(ctx context.Context, aggregateID string) (Aggregate, error)
+	Load(ctx context.Context, aggregateID string, afterVersion int) (Aggregate, error)
 
 	// Apply executes the events specified and returns the current version of the aggregate
 	Apply(ctx context.Context, events ...Event) (*string, *int, error)
@@ -29,7 +29,7 @@ type EventStore interface {
 	Save(context.Context, ...Event) error
 
 	// Load retrives event records from the store and returns them in ASC order
-	Load(context.Context, string) (History, error)
+	Load(ctx context.Context, aggregateID string, fromVersion int) (History, error)
 }
 
 // Event contains data related to a single event

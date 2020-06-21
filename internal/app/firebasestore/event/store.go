@@ -51,37 +51,35 @@ func (s *store) Save(ctx context.Context, events ...eventsource.Event) error {
 
 	_, err := batch.Commit(ctx)
 	if err != nil {
-		return errors.Wrapf(
-			err,
-			"error occurred in store while trying to commit a batch of %v events for aggregate: %v",
-			len(events),
-			events[0].AggregateID,
-		)
+		return err
 	}
 
 	return nil
 }
 
-func (s *store) Load(ctx context.Context, aggregateID string) (eventsource.History, error) {
+func (s *store) Load(
+	ctx context.Context,
+	aggregateID string,
+	afterVersion int,
+) (eventsource.History, error) {
 
 	docs, errQuery := s.firestoreClient.
 		Collection(eventCollection).
 		OrderBy("version", firestore.Asc).
 		Where("aggregateId", "==", aggregateID).
+		Where("version", ">", afterVersion).
 		Documents(ctx).
 		GetAll()
 
 	if errQuery != nil {
-		return nil, errors.Wrapf(
-			errQuery,
-			"error occurred while trying to load events for aggregateID: %v",
-			aggregateID,
-		)
+		return nil, errQuery
 	}
 	return transformDocumentsToHistory(docs)
 }
 
-func transformDocumentsToHistory(docs []*firestore.DocumentSnapshot) (eventsource.History, error) {
+func transformDocumentsToHistory(
+	docs []*firestore.DocumentSnapshot,
+) (eventsource.History, error) {
 	history := make(eventsource.History, len(docs))
 	for i, v := range docs {
 		var record eventsource.Event
@@ -89,7 +87,7 @@ func transformDocumentsToHistory(docs []*firestore.DocumentSnapshot) (eventsourc
 		if err != nil {
 			return nil, errors.Wrapf(
 				err,
-				"error occurred while transforming Firestore document: %v into event record",
+				"unable to transform snapshot %v into History item",
 				v.Ref.ID,
 			)
 		}

@@ -28,6 +28,7 @@ type User {
     points: Int!
     referralCode: String!
     referrals: [Referral!]!
+    version: Int!
 }
 
 type Query {

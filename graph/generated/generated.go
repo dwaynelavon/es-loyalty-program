@@ -74,6 +74,7 @@ type ComplexityRoot struct {
 		UpdatedAt    func(childComplexity int) int
 		UserID       func(childComplexity int) int
 		Username     func(childComplexity int) int
+		Version      func(childComplexity int) int
 	}
 
 	UserCreateResponse struct {
@@ -262,6 +263,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.User.Username(childComplexity), true
 
+	case "User.version":
+		if e.complexity.User.Version == nil {
+			break
+		}
+
+		return e.complexity.User.Version(childComplexity), true
+
 	case "UserCreateResponse.email":
 		if e.complexity.UserCreateResponse.Email == nil {
 			break
@@ -398,6 +406,7 @@ type User {
     points: Int!
     referralCode: String!
     referrals: [Referral!]!
+    version: Int!
 }
 
 type Query {
@@ -1253,6 +1262,40 @@ func (ec *executionContext) _User_referrals(ctx context.Context, field graphql.C
 	res := resTmp.([]user.Referral)
 	fc.Result = res
 	return ec.marshalNReferral2ᚕgithubᚗcomᚋdwaynelavonᚋesᚑloyaltyᚑprogramᚋinternalᚋappᚋuserᚐReferralᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _User_version(ctx context.Context, field graphql.CollectedField, obj *user.DTO) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "User",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Version, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _UserCreateResponse_userId(ctx context.Context, field graphql.CollectedField, obj *model.UserCreateResponse) (ret graphql.Marshaler) {
@@ -2722,6 +2765,11 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 				}
 				return res
 			})
+		case "version":
+			out.Values[i] = ec._User_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

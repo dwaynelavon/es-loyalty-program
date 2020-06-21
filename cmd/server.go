@@ -11,6 +11,7 @@ func main() {
 		dependency.NewConfigReader,
 		dependency.NewFirebaseApp,
 		dependency.NewFirebaseClient,
+		dependency.NewUserEventStore,
 		dependency.NewUserReadRepo,
 		dependency.NewUserReadModel,
 		dependency.NewDispatcher,

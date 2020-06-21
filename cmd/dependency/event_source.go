@@ -14,11 +14,11 @@ import (
 
 func RegisterDispatchHandlers(
 	logger *zap.Logger,
-	firestoreClient *firestore.Client,
+	userEventStore user.EventStore,
 	eventBus eventsource.EventBus,
 	dispatcher eventsource.CommandDispatcher,
 ) error {
-	userRepository := newUserRepository(logger, firestoreClient)
+	userRepository := newUserRepository(logger, userEventStore)
 	dispatcher.RegisterHandler(
 		userCommand.NewUserCommandHandler(
 			userCommand.CommandHandlerParams{
@@ -38,16 +38,30 @@ func RegisterEventHandlers(
 	dispatcher eventsource.CommandDispatcher,
 	userRepo user.ReadRepo,
 	pointsMappingService loyalty.PointsMappingService,
+	eventStore user.EventStore,
 ) error {
-	eventBus.RegisterHandler(userEvent.NewEventHandler(logger, readmodel.NewUserStore(firestoreClient)))
+	eventBus.RegisterHandler(
+		userEvent.NewEventHandler(
+			logger,
+			readmodel.NewUserStore(firestoreClient),
+			eventStore,
+		),
+	)
 	eventBus.RegisterHandler(userEvent.NewSaga(logger, dispatcher, userRepo, pointsMappingService))
 	return nil
 }
 
-func NewDispatcher(logger *zap.Logger, firestoreClient *firestore.Client) eventsource.CommandDispatcher {
+func NewDispatcher(
+	logger *zap.Logger,
+	firestoreClient *firestore.Client,
+) eventsource.CommandDispatcher {
 	return eventsource.NewDispatcher(logger)
 }
 
-func NewEventBus(logger *zap.Logger, firestoreClient *firestore.Client, configReader *config.Reader) eventsource.EventBus {
+func NewEventBus(
+	logger *zap.Logger,
+	firestoreClient *firestore.Client,
+	configReader *config.Reader,
+) eventsource.EventBus {
 	return eventsource.NewEventBus(logger, configReader)
 }

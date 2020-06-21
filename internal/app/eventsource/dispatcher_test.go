@@ -134,6 +134,8 @@ func (m *mockCommandHandler) CommandsHandled() []Command {
 /* ----- helpers ----- */
 func newMockCommandHandler(returnedError error) *mockCommandHandler {
 	commandHandler := new(mockCommandHandler)
-	commandHandler.On("Handle", mock.Anything, mock.Anything).Return(returnedError)
+	commandHandler.
+		On("Handle", mock.Anything, mock.Anything).
+		Return(returnedError)
 	return commandHandler
 }

@@ -18,7 +18,10 @@ func NewUserStore(firestoreClient *firestore.Client) user.ReadRepo {
 	}
 }
 
-func (s *userStore) CreateUser(ctx context.Context, user user.DTO) error {
+func (s *userStore) CreateUser(
+	ctx context.Context,
+	user user.DTO,
+) error {
 	_, err := s.
 		getUserDoc(user.UserID).
 		Set(ctx, user)
@@ -26,16 +29,27 @@ func (s *userStore) CreateUser(ctx context.Context, user user.DTO) error {
 	return err
 }
 
-func (s *userStore) CreateReferral(ctx context.Context, userID string, referral user.Referral) error {
-	_, err := s.
-		getUserReferralCollection(userID).
-		Doc(referral.ID).
-		Create(ctx, referral)
+func (s *userStore) CreateReferral(
+	ctx context.Context,
+	userID string,
+	referral user.Referral,
+	version int,
+) error {
+	referralRef := s.getUserReferralCollection(userID).Doc(referral.ID)
+	batch := s.
+		batchUpdateWithVersion(userID, version).
+		Create(referralRef, referral)
 
+	_, err := batch.Commit(ctx)
 	return err
 }
 
-func (s *userStore) DeleteUser(ctx context.Context, userID string) error {
+func (s *userStore) DeleteUser(
+	ctx context.Context,
+	userID string,
+) error {
+	// TODO: Is soft delete more appropriate here
+	// If using soft delete, need to update version also
 	_, err := s.
 		getUserDoc(userID).
 		Delete(ctx)
@@ -56,32 +70,43 @@ func (s *userStore) Users(ctx context.Context) ([]user.DTO, error) {
 	return transformSnapshotsToUserDTOs(docs)
 }
 
-func (s *userStore) UpdateReferralStatus(ctx context.Context, userID string, referralID string, status user.ReferralStatus) error {
-	_, err := s.
-		getUserReferralCollection(userID).
-		Doc(referralID).
-		Update(ctx, []firestore.Update{
-			{
-				Path: "status", Value: string(status),
-			},
+func (s *userStore) UpdateReferralStatus(
+	ctx context.Context,
+	userID, referralID string,
+	status user.ReferralStatus,
+	version int,
+) error {
+	referralRef := s.getUserReferralCollection(userID).Doc(referralID)
+	batch := s.
+		batchUpdateWithVersion(userID, version).
+		Update(referralRef, []firestore.Update{
+			{Path: "status", Value: string(status)},
 		})
 
+	_, err := batch.Commit(ctx)
 	return err
 }
 
-func (s *userStore) EarnPoints(ctx context.Context, userID string, points uint32) error {
+func (s *userStore) EarnPoints(
+	ctx context.Context,
+	userID string,
+	points uint32,
+	version int,
+) error {
 	_, err := s.
 		getUserDoc(userID).
 		Update(ctx, []firestore.Update{
-			{
-				Path: "points", Value: firestore.Increment(points),
-			},
+			{Path: "points", Value: firestore.Increment(points)},
+			{Path: "version", Value: version},
 		})
 
 	return err
 }
 
-func (s *userStore) UserByReferralCode(ctx context.Context, referralCode string) (*user.DTO, error) {
+func (s *userStore) UserByReferralCode(
+	ctx context.Context,
+	referralCode string,
+) (*user.DTO, error) {
 	doc, err := s.
 		getUserCollection().
 		Where("referralCode", "==", referralCode).
@@ -95,7 +120,25 @@ func (s *userStore) UserByReferralCode(ctx context.Context, referralCode string)
 	return transformSnapshotToUserDTO(doc)
 }
 
-func (s *userStore) Referrals(ctx context.Context, userID string) ([]user.Referral, error) {
+func (s *userStore) User(
+	ctx context.Context,
+	userID string,
+) (*user.DTO, error) {
+	doc, err := s.
+		getUserDoc(userID).
+		Get(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return transformSnapshotToUserDTO(doc)
+}
+
+func (s *userStore) Referrals(
+	ctx context.Context,
+	userID string,
+) ([]user.Referral, error) {
 	docs, err := s.
 		getUserReferralCollection(userID).
 		Documents(ctx).
@@ -126,13 +169,29 @@ func (s *userStore) getUserDoc(userID string) *firestore.DocumentRef {
 		Doc(userID)
 }
 
-func transformSnapshotToUserDTO(snapshot *firestore.DocumentSnapshot) (*user.DTO, error) {
+func (s *userStore) batchUpdateWithVersion(
+	userID string,
+	version int,
+) *firestore.WriteBatch {
+	batch := s.firestoreClient.Batch()
+	userRef := s.getUserDoc(userID)
+	return batch.Update(
+		userRef,
+		[]firestore.Update{{Path: "version", Value: version}},
+	)
+}
+
+func transformSnapshotToUserDTO(
+	snapshot *firestore.DocumentSnapshot,
+) (*user.DTO, error) {
 	var user user.DTO
 	err := snapshot.DataTo(&user)
 	return &user, err
 }
 
-func transformSnapshotsToUserDTOs(snapshots []*firestore.DocumentSnapshot) ([]user.DTO, error) {
+func transformSnapshotsToUserDTOs(
+	snapshots []*firestore.DocumentSnapshot,
+) ([]user.DTO, error) {
 	users := []user.DTO{}
 	var err error
 	for _, v := range snapshots {
@@ -143,7 +202,9 @@ func transformSnapshotsToUserDTOs(snapshots []*firestore.DocumentSnapshot) ([]us
 	return users, err
 }
 
-func transformSnapshotsToReferrals(snapshots []*firestore.DocumentSnapshot) ([]user.Referral, error) {
+func transformSnapshotsToReferrals(
+	snapshots []*firestore.DocumentSnapshot,
+) ([]user.Referral, error) {
 	referrals := []user.Referral{}
 	var err error
 	for _, v := range snapshots {

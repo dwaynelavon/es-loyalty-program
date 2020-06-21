@@ -73,7 +73,7 @@ type NotFound interface {
 }
 
 func IsNotFound(err error) bool {
-	r, ok := errors.Cause(err).(NotFound)
+	r, ok := err.(NotFound)
 	return ok && r.NotFound()
 }
 
