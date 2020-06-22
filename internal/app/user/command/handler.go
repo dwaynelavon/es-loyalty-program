@@ -12,15 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var commandsHandled []eventsource.Command = []eventsource.Command{
-	&loyalty.CompleteReferral{},
-	&loyalty.CreateReferral{},
-	&loyalty.CreateUser{},
-	&loyalty.DeleteUser{},
-	&loyalty.EarnPoints{},
-}
-
-type commandHandler struct {
+type handler struct {
 	eventBus eventsource.EventBus
 	repo     eventsource.EventRepo
 	logger   *zap.Logger
@@ -32,16 +24,18 @@ type CommandHandlerParams struct {
 	Logger   *zap.Logger
 }
 
-func NewUserCommandHandler(params CommandHandlerParams) eventsource.CommandHandler {
-	return &commandHandler{
+func NewUserCommandHandler(
+	params CommandHandlerParams,
+) eventsource.CommandHandler {
+	return &handler{
 		eventBus: params.EventBus,
 		repo:     params.Repo,
 		logger:   params.Logger,
 	}
 }
 
-// Handle implements the Aggregate interface. Unhandled events fall through safely
-func (c *commandHandler) Handle(
+// Handle implements the CommandHandler interface
+func (c *handler) Handle(
 	ctx context.Context,
 	cmd eventsource.Command,
 ) error {
@@ -68,50 +62,55 @@ func (c *commandHandler) Handle(
 	return c.eventBus.Publish(events)
 }
 
-// CommandsHandled implements the command handler interface
-func (c *commandHandler) CommandsHandled() []eventsource.Command {
-	return commandsHandled
+// CommandsHandled implements the CommandHandler interface
+func (c *handler) CommandsHandled() []eventsource.Command {
+	return []eventsource.Command{
+		&loyalty.CompleteReferral{},
+		&loyalty.CreateReferral{},
+		&loyalty.CreateUser{},
+		&loyalty.DeleteUser{},
+		&loyalty.EarnPoints{},
+	}
 }
 
-func (c *commandHandler) handleCompleteReferral(
+func (c *handler) handleCompleteReferral(
 	ctx context.Context,
 	command *loyalty.CompleteReferral,
 ) ([]eventsource.Event, error) {
-	aggId := command.AggregateID()
 	if eventsource.IsStringEmpty(&command.ReferredUserID) {
 		return nil, errors.New(
 			"ReferredUserID must be defined when completing referral",
 		)
 	}
-	u, err := c.loadUserAggregate(ctx, aggId)
+
+	aggregate, err := c.loadUserAggregate(ctx, command.AggregateID())
 	if err != nil {
 		return nil, err
 	}
-	if eventsource.IsStringEmpty(u.ReferralCode) ||
-		*u.ReferralCode != command.ReferredByCode {
+	if eventsource.IsStringEmpty(aggregate.ReferralCode) ||
+		*aggregate.ReferralCode != command.ReferredByCode {
 		return nil, errors.Errorf(
 			"referredBy code %v does not match user's referral code",
 			&command.ReferredByCode,
 		)
 	}
 
-	a := user.NewReferralCompletedApplier(
-		command.AggregateID(),
+	applier := user.NewReferralCompletedApplier(
+		aggregate.ID,
 		user.UserReferralCompletedEventType,
-		u.Version+1,
+		aggregate.Version+1,
 	)
-	errSetPayload := a.SetSerializedPayload(
-		getCompleteReferralPayload(
-			u.Referrals,
-			command.ReferredUserEmail,
-			*u.ReferralCode,
-		),
+	payload := getCompleteReferralPayload(
+		aggregate.Referrals,
+		command.ReferredUserEmail,
+		*aggregate.ReferralCode,
 	)
+	errSetPayload := applier.SetSerializedPayload(payload)
 	if errSetPayload != nil {
 		return nil, errSetPayload
 	}
 
-	events := []eventsource.Event{a.EventModel()}
+	events := []eventsource.Event{applier.EventModel()}
 	errSave := c.persist(ctx, events)
 	if errSave != nil {
 		return nil, errSave
@@ -120,7 +119,7 @@ func (c *commandHandler) handleCompleteReferral(
 	return events, nil
 }
 
-func (c *commandHandler) handleCreateUser(
+func (c *handler) handleCreateUser(
 	ctx context.Context,
 	command *loyalty.CreateUser,
 ) ([]eventsource.Event, error) {
@@ -134,22 +133,24 @@ func (c *commandHandler) handleCreateUser(
 	if errReferralCode != nil {
 		return nil, errors.New("error generating referral code")
 	}
-	a := user.NewCreatedApplier(
+
+	applier := user.NewCreatedApplier(
 		command.AggregateID(),
 		user.UserCreatedEventType,
 		1,
 	)
-	errSetPayload := a.SetSerializedPayload(user.CreatedPayload{
+	payload := user.CreatedPayload{
 		Username:       command.Username,
 		Email:          command.Email,
 		ReferredByCode: command.ReferredByCode,
 		ReferralCode:   referralCode,
-	})
+	}
+	errSetPayload := applier.SetSerializedPayload(payload)
 	if errSetPayload != nil {
 		return nil, errSetPayload
 	}
 
-	events := []eventsource.Event{a.EventModel()}
+	events := []eventsource.Event{applier.EventModel()}
 	errSave := c.persist(ctx, events)
 	if errSave != nil {
 		return nil, errSave
@@ -158,7 +159,7 @@ func (c *commandHandler) handleCreateUser(
 	return events, nil
 }
 
-func (c *commandHandler) handleCreateReferral(
+func (c *handler) handleCreateReferral(
 	ctx context.Context,
 	command *loyalty.CreateReferral,
 ) ([]eventsource.Event, error) {
@@ -168,34 +169,34 @@ func (c *commandHandler) handleCreateReferral(
 		)
 	}
 
-	agg, err := c.loadUserAggregate(ctx, command.AggregateID())
+	aggregate, err := c.loadUserAggregate(ctx, command.AggregateID())
 	if err != nil {
 		return nil, err
 	}
-	if agg.ReferralCode == nil {
+
+	if aggregate.ReferralCode == nil {
 		return nil, errors.Errorf(
 			"user %v does not have a referral code",
 			command.AggregateID())
 	}
 
+	applier := user.NewReferralCreatedApplier(
+		command.AggregateID(),
+		user.UserReferralCreatedEventType,
+		aggregate.Version+1,
+	)
 	payload := user.ReferralCreatedPayload{
-		ReferralCode:      *agg.ReferralCode,
+		ReferralCode:      *aggregate.ReferralCode,
 		ReferralID:        eventsource.NewUUID(),
 		ReferralStatus:    string(user.ReferralStatusCreated),
 		ReferredUserEmail: command.ReferredUserEmail,
 	}
-
-	a := user.NewReferralCreatedApplier(
-		command.AggregateID(),
-		user.UserReferralCreatedEventType,
-		agg.Version+1,
-	)
-	errSetPayload := a.SetSerializedPayload(payload)
+	errSetPayload := applier.SetSerializedPayload(payload)
 	if errSetPayload != nil {
 		return nil, errSetPayload
 	}
 
-	events := []eventsource.Event{a.EventModel()}
+	events := []eventsource.Event{applier.EventModel()}
 	errSave := c.persist(ctx, events)
 	if errSave != nil {
 		return nil, errSave
@@ -204,28 +205,29 @@ func (c *commandHandler) handleCreateReferral(
 	return events, nil
 }
 
-func (c *commandHandler) handleDeleteUser(
+func (c *handler) handleDeleteUser(
 	ctx context.Context,
 	command *loyalty.DeleteUser,
 ) ([]eventsource.Event, error) {
-	u, err := c.loadUserAggregate(ctx, command.AggregateID())
+	aggregate, err := c.loadUserAggregate(ctx, command.AggregateID())
 	if err != nil {
 		return nil, err
 	}
 
-	a := user.NewDeletedApplier(
+	applier := user.NewDeletedApplier(
 		command.AggregateID(),
 		user.UserDeletedEventType,
-		u.Version+1,
+		aggregate.Version+1,
 	)
-	errSetPayload := a.SetSerializedPayload(user.DeletedPayload{
+	payload := user.DeletedPayload{
 		DeletedAt: time.Now(),
-	})
+	}
+	errSetPayload := applier.SetSerializedPayload(payload)
 	if errSetPayload != nil {
 		return nil, errSetPayload
 	}
 
-	events := []eventsource.Event{a.EventModel()}
+	events := []eventsource.Event{applier.EventModel()}
 	errSave := c.persist(ctx, events)
 	if errSave != nil {
 		return nil, errSave
@@ -234,7 +236,7 @@ func (c *commandHandler) handleDeleteUser(
 	return events, nil
 }
 
-func (c *commandHandler) handleEarnPoints(
+func (c *handler) handleEarnPoints(
 	ctx context.Context,
 	command *loyalty.EarnPoints,
 ) ([]eventsource.Event, error) {
@@ -242,24 +244,24 @@ func (c *commandHandler) handleEarnPoints(
 		return nil, errors.New("points earned must be greater than zero")
 	}
 
-	u, err := c.loadUserAggregate(ctx, command.AggregateID())
+	aggregate, err := c.loadUserAggregate(ctx, command.AggregateID())
 	if err != nil {
 		return nil, err
 	}
 
-	a := user.NewPointsEarnedApplier(
+	applier := user.NewPointsEarnedApplier(
 		command.AggregateID(),
 		user.PointsEarnedEventType,
-		u.Version+1,
+		aggregate.Version+1,
 	)
-	errSetPayload := a.SetSerializedPayload(user.PointsEarnedPayload{
+	errSetPayload := applier.SetSerializedPayload(user.PointsEarnedPayload{
 		PointsEarned: command.Points,
 	})
 	if errSetPayload != nil {
 		return nil, errSetPayload
 	}
 
-	events := []eventsource.Event{a.EventModel()}
+	events := []eventsource.Event{applier.EventModel()}
 	errSave := c.persist(ctx, events)
 	if errSave != nil {
 		return nil, errSave
@@ -268,28 +270,28 @@ func (c *commandHandler) handleEarnPoints(
 	return events, nil
 }
 
-func (c *commandHandler) loadUserAggregate(
+func (c *handler) loadUserAggregate(
 	ctx context.Context,
 	aggregateID string,
 ) (*user.User, error) {
-	agg, err := c.repo.Load(ctx, aggregateID, 0)
+	aggregate, err := c.repo.Load(ctx, aggregateID, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	user, errUser := user.AssertUserAggregate(agg)
+	user, errUser := user.AssertUserAggregate(aggregate)
 	if errUser != nil {
 		return nil, errUser
 	}
 
 	if user.DeletedAt != nil {
-		return nil, errors.New("can not delete a user that's already deleted")
+		return nil, errors.New("user deleted")
 	}
 
 	return user, nil
 }
 
-func (c *commandHandler) persist(
+func (c *handler) persist(
 	ctx context.Context,
 	events []eventsource.Event,
 ) error {
@@ -313,9 +315,8 @@ func (c *commandHandler) persist(
 /* ----- helpers ----- */
 
 /*
-Sometimes the user can use a referral code to sign up even if the referring user
-hasn't formally invited them. In this case we create a new referral with
-a completed status
+	Sometimes the user can use a referral code to sign up even if the referring user hasn't formally invited them. In this case we create a new referral
+	with a completed status
 */
 func getCompleteReferralPayload(
 	referrals []user.Referral,
