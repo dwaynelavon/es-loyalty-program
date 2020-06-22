@@ -10,10 +10,12 @@ type PointsEarned struct {
 	eventsource.ApplierModel
 }
 
-func NewPointsEarnedApplier(id, eventType string, version int) eventsource.Applier {
-	return &PointsEarned{
-		ApplierModel: *eventsource.NewApplierModel(id, eventType, version, nil),
-	}
+func NewPointsEarnedApplier(
+	id, eventType string,
+	version int,
+) eventsource.Applier {
+	event := eventsource.NewEvent(id, eventType, version, nil)
+	return &PointsEarned{ApplierModel: *eventsource.NewApplierModel(*event)}
 }
 
 type PointsEarnedPayload struct {
@@ -22,37 +24,36 @@ type PointsEarnedPayload struct {
 
 // Apply implements the applier interface
 func (applier *PointsEarned) Apply(agg eventsource.Aggregate) error {
-	u, err := AssertUserAggregate(agg)
+	userAggregate, err := AssertUserAggregate(agg)
 	if err != nil {
 		return err
 	}
 
-	p, errDeserialize := applier.GetDeserializedPayload()
+	payload, errDeserialize := applier.GetDeserializedPayload()
 	if errDeserialize != nil {
 		return errDeserialize
 	}
-	if eventsource.IsZero(p.PointsEarned) {
+	if eventsource.IsZero(payload.PointsEarned) {
 		return errors.New("EarnPoints event must have a non-zero point value")
 	}
 
-	u.Points += p.PointsEarned
-	u.Version = applier.Version
+	userAggregate.Points += payload.PointsEarned
+	userAggregate.Version = applier.Version
 	return nil
 }
 
 func (applier *PointsEarned) SetSerializedPayload(payload interface{}) error {
-	var operation eventsource.Operation = "user.PointsEarned.SetSerializedPayload"
-
 	pointsEarnedEvent, ok := payload.(PointsEarnedPayload)
 	if !ok {
-		return applier.PayloadErr(operation, payload)
+		return applier.PayloadErr("user.PointsEarned.SetSerializedPayload", payload)
 	}
 	return applier.Serialize(pointsEarnedEvent)
 }
 
-func (applier *PointsEarned) GetDeserializedPayload() (*PointsEarnedPayload, error) {
-	var operation eventsource.Operation = "user.PointsEarned.GetDeserializedPayload"
-
+func (applier *PointsEarned) GetDeserializedPayload() (
+	*PointsEarnedPayload,
+	error,
+) {
 	var payload PointsEarnedPayload
 	errPayload := applier.Deserialize(&payload)
 	if errPayload != nil {
@@ -61,7 +62,7 @@ func (applier *PointsEarned) GetDeserializedPayload() (*PointsEarnedPayload, err
 
 	if eventsource.IsZero(payload.PointsEarned) {
 		return nil, applier.PayloadErr(
-			operation,
+			"user.PointsEarned.GetDeserializedPayload",
 			payload,
 		)
 	}

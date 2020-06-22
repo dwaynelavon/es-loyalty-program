@@ -11,11 +11,10 @@ import (
 )
 
 type saga struct {
-	dispatcher        eventsource.CommandDispatcher
-	repo              user.ReadRepo
-	pointsMapping     loyalty.PointsMappingService
-	logger            *zap.Logger
-	eventTypesHandled []string
+	dispatcher    eventsource.CommandDispatcher
+	repo          user.ReadRepo
+	pointsMapping loyalty.PointsMappingService
+	logger        *zap.Logger
 }
 
 func NewSaga(
@@ -29,14 +28,11 @@ func NewSaga(
 		logger:        logger,
 		repo:          repo,
 		pointsMapping: pointsMapping,
-		eventTypesHandled: []string{
-			user.UserCreatedEventType,
-		},
 	}
 }
 
 func (s *saga) EventTypesHandled() []string {
-	return s.eventTypesHandled
+	return []string{user.UserCreatedEventType}
 }
 
 func (s *saga) Sync(ctx context.Context, aggregateID string) error {
@@ -59,48 +55,50 @@ func (s *saga) handleUserCreatedEvent(
 	ctx context.Context,
 	event eventsource.Event,
 ) error {
-	a, err := user.GetApplier(event)
+	rawApplier, err := user.GetApplier(event)
 	if err != nil {
 		return err
 	}
 
-	applier, ok := a.(*user.Created)
+	applier, ok := rawApplier.(*user.Created)
 	if !ok {
 		return errors.New("invalid applier for event provided")
 	}
-	p, errPayload := applier.GetDeserializedPayload()
+
+	payload, errPayload := applier.GetDeserializedPayload()
 	if errPayload != nil {
 		return errPayload
 	}
 
-	if p.ReferredByCode == nil {
+	if payload.ReferredByCode == nil {
 		return s.handleSignUpWithoutReferral(ctx, event)
 	}
 
 	referringUser, errReferringUser := s.repo.
-		UserByReferralCode(ctx, *p.ReferredByCode)
+		UserByReferralCode(ctx, *payload.ReferredByCode)
 	if errReferringUser != nil {
 		return errors.Errorf(
-			"referring user not found for referral code: %v and aggregate: %v",
-			*p.ReferredByCode,
-			event.AggregateID,
+			"referring user not found for referral code: %v",
+			*payload.ReferredByCode,
 		)
 	}
 
-	errCompleteReferral := s.dispatcher.Dispatch(ctx, &loyalty.CompleteReferral{
-		CommandModel: eventsource.CommandModel{
-			ID: referringUser.UserID,
+	errCompleteReferral := s.dispatcher.Dispatch(
+		ctx,
+		&loyalty.CompleteReferral{
+			CommandModel: eventsource.CommandModel{
+				ID: referringUser.UserID,
+			},
+			ReferredByCode:    *payload.ReferredByCode,
+			ReferredUserEmail: payload.Email,
+			ReferredUserID:    event.AggregateID,
 		},
-		ReferredByCode:    *p.ReferredByCode,
-		ReferredUserEmail: p.Email,
-		ReferredUserID:    event.AggregateID,
-	})
+	)
 	if errCompleteReferral != nil {
 		return errCompleteReferral
 	}
 
 	// Earn points for both users
-	// TODO: Maybe these should be goroutines
 	errEarnPointsReferrer := s.handleReferUser(ctx, event, referringUser.UserID)
 	if errEarnPointsReferrer != nil {
 		return errEarnPointsReferrer
@@ -124,12 +122,15 @@ func (s *saga) handleSignUpWithoutReferral(
 		return errSignUpPoints
 	}
 
-	return s.dispatcher.Dispatch(ctx, &loyalty.EarnPoints{
-		CommandModel: eventsource.CommandModel{
-			ID: event.AggregateID,
+	return s.dispatcher.Dispatch(
+		ctx,
+		&loyalty.EarnPoints{
+			CommandModel: eventsource.CommandModel{
+				ID: event.AggregateID,
+			},
+			Points: *signUpPoints,
 		},
-		Points: *signUpPoints,
-	})
+	)
 }
 
 func (s *saga) handleReferUser(
@@ -142,6 +143,7 @@ func (s *saga) handleReferUser(
 	if errReferrerPoints != nil {
 		return errReferrerPoints
 	}
+
 	errEarnPointsReferrer := s.dispatcher.Dispatch(ctx, &loyalty.EarnPoints{
 		CommandModel: eventsource.CommandModel{
 			ID: referringUserID,
@@ -151,6 +153,7 @@ func (s *saga) handleReferUser(
 	if errEarnPointsReferrer != nil {
 		return errEarnPointsReferrer
 	}
+
 	return nil
 }
 
@@ -163,6 +166,7 @@ func (s *saga) handleSignUpWithReferral(
 	if errRefereePoints != nil {
 		return errRefereePoints
 	}
+
 	errEarnPointsReferee := s.dispatcher.Dispatch(ctx, &loyalty.EarnPoints{
 		CommandModel: eventsource.CommandModel{
 			ID: event.AggregateID,
@@ -172,5 +176,6 @@ func (s *saga) handleSignUpWithReferral(
 	if errEarnPointsReferee != nil {
 		return errEarnPointsReferee
 	}
+
 	return nil
 }

@@ -29,13 +29,9 @@ type ApplierModel struct {
 }
 
 // NewApplierModel creates a new applier model
-func NewApplierModel(
-	id, eventType string,
-	version int,
-	payload []byte,
-) *ApplierModel {
+func NewApplierModel(event Event) *ApplierModel {
 	return &ApplierModel{
-		Event: *NewEvent(id, eventType, version, payload),
+		Event: event,
 	}
 }
 

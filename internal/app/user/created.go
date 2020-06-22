@@ -10,8 +10,9 @@ type Created struct {
 }
 
 func NewCreatedApplier(id, eventType string, version int) eventsource.Applier {
+	event := eventsource.NewEvent(id, eventType, version, nil)
 	return &Created{
-		ApplierModel: *eventsource.NewApplierModel(id, eventType, version, nil),
+		ApplierModel: *eventsource.NewApplierModel(*event),
 	}
 }
 
@@ -29,15 +30,15 @@ func (applier *Created) Apply(agg eventsource.Aggregate) error {
 		return err
 	}
 
-	p, errDeserialize := applier.GetDeserializedPayload()
+	payload, errDeserialize := applier.GetDeserializedPayload()
 	if errDeserialize != nil {
 		return errDeserialize
 	}
 
 	u.Version = applier.Version
-	u.Username = p.Username
-	u.Email = p.Email
-	u.ReferralCode = &p.ReferralCode
+	u.Username = payload.Username
+	u.Email = payload.Email
+	u.ReferralCode = &payload.ReferralCode
 	return nil
 }
 
@@ -56,8 +57,6 @@ func (applier *Created) SetSerializedPayload(payload interface{}) error {
 }
 
 func (applier *Created) GetDeserializedPayload() (*CreatedPayload, error) {
-	var operation eventsource.Operation = "user.Created.GetDeserializedPayload"
-
 	var payload CreatedPayload
 	errPayload := applier.Deserialize(&payload)
 	if errPayload != nil {
@@ -70,7 +69,7 @@ func (applier *Created) GetDeserializedPayload() (*CreatedPayload, error) {
 		&payload.ReferralCode,
 	) {
 		return nil, applier.PayloadErr(
-			operation,
+			"user.Created.GetDeserializedPayload",
 			payload,
 		)
 	}

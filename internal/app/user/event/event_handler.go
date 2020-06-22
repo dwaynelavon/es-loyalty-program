@@ -16,10 +16,10 @@ type userEventHandler struct {
 	logger            *zap.Logger
 	sLogger           *zap.SugaredLogger
 	eventStore        eventsource.EventStore
-	eventTypesHandled []string
 	isReadModelSynced bool
 }
 
+// NewEventHandler creates an instance of EventHandler
 func NewEventHandler(
 	logger *zap.Logger,
 	readRepo user.ReadRepo,
@@ -30,35 +30,21 @@ func NewEventHandler(
 		eventStore: eventStore,
 		logger:     logger,
 		sLogger:    logger.Sugar(),
-		eventTypesHandled: []string{
-			user.UserCreatedEventType,
-			user.UserDeletedEventType,
-			user.UserReferralCreatedEventType,
-			user.UserReferralCompletedEventType,
-			user.PointsEarnedEventType,
-		},
 	}
 }
 
-func (h *userEventHandler) loadAggregate(
-	ctx context.Context,
-	aggregateID string,
-) (*user.DTO, error) {
-	// TODO: cache this value since it's read multiple times during the same request
-	aggregate, errAggregate := h.readRepo.User(ctx, aggregateID)
-	if errAggregate != nil {
-		if status.Code(errAggregate) == codes.NotFound {
-			return nil, nil
-		}
-		return nil, errors.Wrap(
-			errAggregate,
-			"unable to load aggregate from read model",
-		)
+// EventTypesHandled implements the EventHandler interface
+func (h *userEventHandler) EventTypesHandled() []string {
+	return []string{
+		user.UserCreatedEventType,
+		user.UserDeletedEventType,
+		user.UserReferralCreatedEventType,
+		user.UserReferralCompletedEventType,
+		user.PointsEarnedEventType,
 	}
-
-	return aggregate, nil
 }
 
+// Sync implements the EventHandler interface
 func (h *userEventHandler) Sync(
 	ctx context.Context,
 	aggregateID string,
@@ -72,6 +58,7 @@ func (h *userEventHandler) Sync(
 	if errAggregate != nil {
 		return errAggregate
 	}
+
 	if aggregate == nil {
 		return nil
 	}
@@ -96,6 +83,7 @@ func (h *userEventHandler) Sync(
 	return nil
 }
 
+// Handle implements the EventHandler interface
 func (h *userEventHandler) Handle(
 	ctx context.Context,
 	event eventsource.Event,
@@ -112,8 +100,23 @@ func (h *userEventHandler) Handle(
 	return h.handleEvent(ctx, event)
 }
 
-func (h *userEventHandler) EventTypesHandled() []string {
-	return h.eventTypesHandled
+func (h *userEventHandler) loadAggregate(
+	ctx context.Context,
+	aggregateID string,
+) (*user.DTO, error) {
+	// TODO: cache this call per request
+	aggregate, errAggregate := h.readRepo.User(ctx, aggregateID)
+	if errAggregate != nil {
+		if status.Code(errAggregate) == codes.NotFound {
+			return nil, nil
+		}
+		return nil, errors.Wrap(
+			errAggregate,
+			"unable to load aggregate from read model",
+		)
+	}
+
+	return aggregate, nil
 }
 
 /* ----- handlers ----- */
@@ -159,12 +162,10 @@ func handlePointsEarned(
 	}
 
 	pointsEarnedEvent := user.PointsEarned{
-		ApplierModel: eventsource.ApplierModel{
-			Event: event,
-		},
+		ApplierModel: *eventsource.NewApplierModel(event),
 	}
 
-	p, errPayload := pointsEarnedEvent.GetDeserializedPayload()
+	payload, errPayload := pointsEarnedEvent.GetDeserializedPayload()
 	if errPayload != nil {
 		return errPayload
 	}
@@ -172,7 +173,7 @@ func handlePointsEarned(
 	return readRepo.EarnPoints(
 		ctx,
 		event.AggregateID,
-		p.PointsEarned,
+		payload.PointsEarned,
 		aggregate.Version+1,
 	)
 }
@@ -183,24 +184,22 @@ func handleUserCreated(
 	readRepo user.ReadRepo,
 ) error {
 	createdEvent := user.Created{
-		ApplierModel: eventsource.ApplierModel{
-			Event: event,
-		},
+		ApplierModel: *eventsource.NewApplierModel(event),
 	}
 
-	p, errPayload := createdEvent.GetDeserializedPayload()
+	payload, errPayload := createdEvent.GetDeserializedPayload()
 	if errPayload != nil {
 		return errPayload
 	}
 
 	userDTO := user.DTO{
 		UserID:         createdEvent.AggregateID,
-		Username:       p.Username,
-		Email:          p.Email,
+		Username:       payload.Username,
+		Email:          payload.Email,
 		CreatedAt:      createdEvent.EventAt,
 		UpdatedAt:      createdEvent.EventAt,
-		ReferralCode:   p.ReferralCode,
-		ReferredByCode: p.ReferredByCode,
+		ReferralCode:   payload.ReferralCode,
+		ReferredByCode: payload.ReferredByCode,
 		AggregateBase: eventsource.AggregateBase{
 			Version: event.Version,
 		},
@@ -224,12 +223,10 @@ func handleUserReferralCompleted(
 	}
 
 	referralCompletedEvent := user.ReferralCompleted{
-		ApplierModel: eventsource.ApplierModel{
-			Event: event,
-		},
+		ApplierModel: *eventsource.NewApplierModel(event),
 	}
 
-	p, errPayload := referralCompletedEvent.GetDeserializedPayload()
+	payload, errPayload := referralCompletedEvent.GetDeserializedPayload()
 	if errPayload != nil {
 		return errPayload
 	}
@@ -237,7 +234,7 @@ func handleUserReferralCompleted(
 	return readRepo.UpdateReferralStatus(
 		ctx,
 		event.AggregateID,
-		p.ReferralID,
+		payload.ReferralID,
 		user.ReferralStatusCompleted,
 		aggregate.Version+1,
 	)
@@ -256,23 +253,21 @@ func handleUserReferralCreated(
 	}
 
 	referralCreatedEvent := user.ReferralCreated{
-		ApplierModel: eventsource.ApplierModel{
-			Event: event,
-		},
+		ApplierModel: *eventsource.NewApplierModel(event),
 	}
 
-	p, errPayload := referralCreatedEvent.GetDeserializedPayload()
+	payload, errPayload := referralCreatedEvent.GetDeserializedPayload()
 	if errPayload != nil {
 		return errPayload
 	}
 
-	status, errStatus := user.GetReferralStatus(&p.ReferralStatus)
+	status, errStatus := user.GetReferralStatus(&payload.ReferralStatus)
 	if errStatus != nil {
 		return eventsource.InvalidPayloadErr(
 			operation,
 			errStatus,
 			event.AggregateID,
-			p,
+			payload,
 		)
 	}
 
@@ -280,9 +275,9 @@ func handleUserReferralCreated(
 		ctx,
 		event.AggregateID,
 		user.Referral{
-			ID:                p.ReferralID,
-			ReferralCode:      p.ReferralCode,
-			ReferredUserEmail: p.ReferredUserEmail,
+			ID:                payload.ReferralID,
+			ReferralCode:      payload.ReferralCode,
+			ReferredUserEmail: payload.ReferredUserEmail,
 			Status:            status,
 			CreatedAt:         event.EventAt,
 			UpdatedAt:         event.EventAt,

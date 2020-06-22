@@ -10,9 +10,13 @@ type ReferralCreated struct {
 	eventsource.ApplierModel
 }
 
-func NewReferralCreatedApplier(id, eventType string, version int) eventsource.Applier {
+func NewReferralCreatedApplier(
+	id, eventType string,
+	version int,
+) eventsource.Applier {
+	event := eventsource.NewEvent(id, eventType, version, nil)
 	return &ReferralCreated{
-		ApplierModel: *eventsource.NewApplierModel(id, eventType, version, nil),
+		ApplierModel: *eventsource.NewApplierModel(*event),
 	}
 }
 
@@ -25,42 +29,42 @@ type ReferralCreatedPayload struct {
 
 // Apply implements the applier interface
 func (applier *ReferralCreated) Apply(agg eventsource.Aggregate) error {
-	u, err := AssertUserAggregate(agg)
+	userAggregate, err := AssertUserAggregate(agg)
 	if err != nil {
 		return err
 	}
 
-	p, errDeserialize := applier.GetDeserializedPayload()
+	payload, errDeserialize := applier.GetDeserializedPayload()
 	if errDeserialize != nil {
 		return errDeserialize
 	}
 
-	status, errStatus := GetReferralStatus(&p.ReferralStatus)
+	status, errStatus := GetReferralStatus(&payload.ReferralStatus)
 	if errStatus != nil {
 		return errors.New("invalid status provided to ReferralCreated applier")
 	}
 
 	referral := Referral{
-		ID:                p.ReferralID,
-		ReferralCode:      p.ReferralCode,
-		ReferredUserEmail: p.ReferredUserEmail,
+		ID:                payload.ReferralID,
+		ReferralCode:      payload.ReferralCode,
+		ReferredUserEmail: payload.ReferredUserEmail,
 		Status:            status,
 	}
 
-	u.Version = applier.Version
-	u.Referrals = append(u.Referrals, referral)
-	u.ReferralCode = &p.ReferralCode
+	userAggregate.Version = applier.Version
+	userAggregate.Referrals = append(userAggregate.Referrals, referral)
+	userAggregate.ReferralCode = &payload.ReferralCode
 
 	return nil
 }
 
-func (applier *ReferralCreated) SetSerializedPayload(payload interface{}) error {
-	var operation eventsource.Operation = "user.ReferralCreated.SetSerializedPayload"
-
+func (applier *ReferralCreated) SetSerializedPayload(
+	payload interface{},
+) error {
 	referralCreatedPayload, ok := payload.(ReferralCreatedPayload)
 	if !ok {
 		return applier.PayloadErr(
-			operation,
+			"user.ReferralCreated.SetSerializedPayload",
 			payload,
 		)
 	}
@@ -68,9 +72,10 @@ func (applier *ReferralCreated) SetSerializedPayload(payload interface{}) error 
 	return applier.Serialize(referralCreatedPayload)
 }
 
-func (applier *ReferralCreated) GetDeserializedPayload() (*ReferralCreatedPayload, error) {
-	var operation eventsource.Operation = "user.ReferralCreated.GetDeserializedPayload"
-
+func (applier *ReferralCreated) GetDeserializedPayload() (
+	*ReferralCreatedPayload,
+	error,
+) {
 	var payload ReferralCreatedPayload
 	errPayload := applier.Deserialize(&payload)
 	if errPayload != nil {
@@ -84,7 +89,7 @@ func (applier *ReferralCreated) GetDeserializedPayload() (*ReferralCreatedPayloa
 		&payload.ReferralStatus,
 	) {
 		return nil, applier.PayloadErr(
-			operation,
+			"user.ReferralCreated.GetDeserializedPayload",
 			payload,
 		)
 	}

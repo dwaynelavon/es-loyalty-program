@@ -12,9 +12,8 @@ type Deleted struct {
 }
 
 func NewDeletedApplier(id, eventType string, version int) eventsource.Applier {
-	return &Deleted{
-		ApplierModel: *eventsource.NewApplierModel(id, eventType, version, nil),
-	}
+	event := eventsource.NewEvent(id, eventType, version, nil)
+	return &Deleted{ApplierModel: *eventsource.NewApplierModel(*event)}
 }
 
 type DeletedPayload struct {
@@ -23,36 +22,33 @@ type DeletedPayload struct {
 
 // Apply implements the applier interface
 func (applier *Deleted) Apply(agg eventsource.Aggregate) error {
-	u, err := AssertUserAggregate(agg)
+	userAggregate, err := AssertUserAggregate(agg)
 	if err != nil {
 		return err
 	}
 
-	p, errDeserialize := applier.GetDeserializedPayload()
+	payload, errDeserialize := applier.GetDeserializedPayload()
 	if errDeserialize != nil {
 		return errDeserialize
 	}
 
-	u.DeletedAt = &p.DeletedAt
+	userAggregate.DeletedAt = &payload.DeletedAt
 	return nil
 }
 
 func (applier *Deleted) SetSerializedPayload(payload interface{}) error {
-	var operation eventsource.Operation = "user.Deleted.SetSerializedPayload"
-
 	deletedPayload, ok := payload.(DeletedPayload)
 	if !ok {
 		return applier.PayloadErr(
-			operation,
+			"user.Deleted.SetSerializedPayload",
 			payload,
 		)
 	}
+
 	return applier.Serialize(deletedPayload)
 }
 
 func (applier *Deleted) GetDeserializedPayload() (*DeletedPayload, error) {
-	var operation eventsource.Operation = "user.Deleted.GetDeserializedPayload"
-
 	var payload DeletedPayload
 	errPayload := applier.Deserialize(&payload)
 	if errPayload != nil {
@@ -61,7 +57,7 @@ func (applier *Deleted) GetDeserializedPayload() (*DeletedPayload, error) {
 
 	if payload.DeletedAt.IsZero() {
 		return nil, applier.PayloadErr(
-			operation,
+			"user.Deleted.GetDeserializedPayload",
 			payload,
 		)
 	}

@@ -52,6 +52,9 @@ func (r *readModel) Users(ctx context.Context) ([]DTO, error) {
 	return r.readRepo.Users(ctx)
 }
 
-func (r *readModel) Referrals(ctx context.Context, userID string) ([]Referral, error) {
+func (r *readModel) Referrals(
+	ctx context.Context,
+	userID string,
+) ([]Referral, error) {
 	return r.readRepo.Referrals(ctx, userID)
 }

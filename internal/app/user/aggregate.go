@@ -61,16 +61,16 @@ type User struct {
 	Username string `json:"username"`
 	Points   uint32 `json:"points"`
 	// TODO: should this be a pointer?
-	ReferralCode *string `json:"referralCode"`
-	// TODO: Should we include this here? Seems like it should go only in the DTO
-	Referrals []Referral `json:"referrals"`
-	CreatedAt time.Time  `json:"createdAt"`
-	UpdatedAt time.Time  `json:"updatedAt"`
-	DeletedAt *time.Time `json:"deletedAt"`
+	ReferralCode *string    `json:"referralCode"`
+	Referrals    []Referral `json:"referrals"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	UpdatedAt    time.Time  `json:"updatedAt"`
+	DeletedAt    *time.Time `json:"deletedAt"`
 }
 
 // NewUser creates a new instance of the User aggregate
 func NewUser(id string) eventsource.Aggregate {
+	// TODO: can handle creating of referral code here
 	return &User{
 		ID:        id,
 		CreatedAt: time.Now(),
