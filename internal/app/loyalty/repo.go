@@ -9,10 +9,6 @@ import (
 	"go.uber.org/zap"
 )
 
-/*
-AggregateFactory is a function that can be used
-to create a new instance of a particular domain aggregate
-*/
 type aggregateFactory func(id string) eventsource.Aggregate
 
 // repository provides the primary abstraction to saving and loading events
@@ -46,8 +42,7 @@ func (r *repository) Load(
 	aggregateID string,
 	afterVersion int,
 ) (eventsource.Aggregate, error) {
-	agg, err := r.load(ctx, aggregateID, afterVersion)
-	return agg, err
+	return r.load(ctx, aggregateID, afterVersion)
 }
 
 // Apply executes the command and returns the current version of the aggregate
@@ -58,18 +53,21 @@ func (r *repository) Apply(
 	if len(events) == 0 {
 		return nil, nil, errors.New("cannot apply empty event stream")
 	}
+
 	aggregateID := events[0].AggregateID
 	agg, err := r.load(ctx, aggregateID, 0)
 	if err != nil {
 		if !eventsource.IsNotFound(err) {
 			return nil, nil, err
 		}
+
 		agg = r.newAggregate(aggregateID)
 	}
 
 	sort.Slice(events, func(i, j int) bool {
 		return events[i].Version < events[j].Version
 	})
+
 	expectedVersion := agg.EventVersion() + 1
 	if events[0].Version != expectedVersion {
 		return nil, nil, errors.Errorf(
